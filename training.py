@@ -30,7 +30,6 @@ def create_iter_from_dataset(dataset, lang: str):
         text = item['translation'][lang]
         if lang == 'vi':
             text = preprocess_vietnamese(text)
-            print(text)
         yield text
 
 def get_tokenzier(dataset, lang: str, config: dict) -> Tokenizer:
@@ -54,25 +53,6 @@ def get_tokenzier(dataset, lang: str, config: dict) -> Tokenizer:
         tokenizer = Tokenizer.from_file(str(tokenizer_path))
 
     return tokenizer
-
-def create_json_dataset(src_file_path: str, target_file_path: str, json_file_path: str):
-    with open(src_file_path, 'r', encoding='utf-8') as src_file, \
-         open(target_file_path, 'r', encoding='utf-8') as target_file:
-        src_content = src_file.readlines();
-        target_content = target_file.readlines()
-        
-        assert len(src_content) == len(target_content), "The number of sentences in the source and target files must be the same"
-        data = []
-        for _src, _target in zip(src_content, target_content):
-            _src = _src.strip()
-            _target = _target.strip()
-            if _src != '' and _target != '':
-                data.append({
-                    'src': _src,
-                    'target': _target,
-                })
-        with open(json_file_path, 'w', encoding='utf-8') as json_file:
-            json.dump(data, json_file, ensure_ascii=False, indent=2)
 
 def get_dataset(config: dict) -> tuple[DataLoader, DataLoader, Tokenizer, Tokenizer]:
     # create_json_dataset(config['train_src_data'], config['train_target_data'], config['train_json_data'])
