@@ -5,6 +5,8 @@ from torch.utils.data import Dataset
 
 from tokenizers import Tokenizer
 
+from utils import create_mask
+
 class BilingualDataset(Dataset):
     def __init__(
         self,
@@ -33,12 +35,6 @@ class BilingualDataset(Dataset):
 
     def __len__(self):
         return len(self.dataset)
-
-    def create_masks(self, encoder_input: Tensor, decoder_input: Tensor) -> tuple[Tensor, Tensor]:
-        encoder_mask = (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() # (1, 1, seq_length)
-        tril_mask = torch.tril(torch.ones(1, self.seq_length, self.seq_length), diagonal=1).int() # (1, seq_length, seq_length)
-        decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() & tril_mask # (1, seq_length, seq_length)
-        return encoder_mask, decoder_mask
 
     def __getitem__(self, index):
         src_text = self.dataset[index]['translation'][self.src_lang]
@@ -73,7 +69,10 @@ class BilingualDataset(Dataset):
         assert encoder_input.size(0) == self.seq_length
         assert decoder_input.size(0) == self.seq_length
         assert label.size(0) == self.seq_length
-        encoder_mask, decoder_mask = self.create_masks(encoder_input, decoder_input)
+
+        encoder_mask = (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() # (1, 1, seq_length)
+        tril_mask = create_mask(self.seq_length) # (1, seq_length, seq_length)
+        decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() & tril_mask # (1, seq_length, seq_length)
 
         return {
             'src_text': src_text,

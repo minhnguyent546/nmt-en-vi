@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch import Tensor
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 
@@ -21,6 +22,7 @@ from dataset import BilingualDataset
 from config import get_config, get_weights_file_path
 
 from transformer import Transformer, make_transformer
+from utils import create_mask
 
 def preprocess_vietnamese(text: str) -> str:
     return ViTokenizer.tokenize(text)
@@ -106,13 +108,47 @@ def get_dataset(config: dict) -> tuple[DataLoader, DataLoader, Tokenizer, Tokeni
 
     return train_data_loader, validation_data_loader, src_tokenizer, target_tokenizer
 
+def greedy_decode(
+    model: Transformer,
+    device: str,
+    src: Tensor,
+    src_mask: Tensor,
+    src_tokenizer: Tokenizer,
+    target_tokenizer: Tokenizer,
+    seq_length: int
+):
+    sos_token_id = target_tokenizer.token_to_id('<SOS>')
+    eos_token_id = target_tokenizer.token_to_id('<EOS>')
+
+    encoder_output = model.encode(src, src_mask) # (batch_size, seq_length, d_model)
+
+    # initialize decoder input (sos token)
+    decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
+    for i in range(seq_length):
+        decoder_mask = create_mask(decoder_input.size(1)).type_as(src_mask).to(device)
+        decoder_output = model.decode(encoder_output, decoder_input, src_mask, decoder_mask)
+
+        # get the next token
+        projected_output = model.project(decoder_output[:, -1])
+        next_token = torch.argmax(projected_output, dim=1)
+
+        decoder_input = torch.cat([
+            decoder_input,
+            torch.empty((1, 1)).type_as(src).fill_(next_token.item()).to(device)
+        ], dim=1)
+
+        if next_token == eos_token_id:
+            break
+
+    return decoder_input.squeeze(0)
+
 def run_validation(
     model: Transformer,
     device: str,
     validation_data_loader: DataLoader,
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
-    global_state,
+    seq_length: int,
     print_message,
     summary_writer: SummaryWriter | None = None,
     num_examples: int = 3,
@@ -121,7 +157,7 @@ def run_validation(
     counter = 0
 
     src_texts = []
-    target_textx = []
+    target_texts = []
     predicted_texts = []
 
     with torch.no_grad():
@@ -133,6 +169,35 @@ def run_validation(
 
             batch_size = encoder_input.size(0)
             assert batch_size == 1, 'batch_size must be 1 for validation'
+
+            model_output = greedy_decode(
+                model,
+                device,
+                encoder_input,
+                encoder_mask,
+                src_tokenizer,
+                target_tokenizer,
+                seq_length
+            )
+            src_text = batch['src_text']
+            target_text = batch['target_text']
+            predicted_text = target_tokenizer.decode(model_output.detach().cpu().numpy())
+
+            src_texts.append(src_text)
+            target_texts.append(target_text)
+            predicted_texts.append(predicted_text)
+
+            print_message('-'*80)
+            print(f'source text: {src_text}')
+            print(f'target text: {target_text}')
+            print(f'predicted text: {predicted_text}')
+
+            if counter == num_examples:
+                break
+
+    if summary_writer is not None:
+        # calculate BLEU score
+        pass
 
 def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Transformer:
     model = make_transformer(
@@ -167,9 +232,9 @@ def train_model(config):
 
     initial_epoch = 0
     global_step = 0
-    if config['preload']:
+    if config['preload'] is not None:
         model_filename = get_weights_file_path(epoch=config['preload'], config=config)
-        print(f'>>> Loading weights from {model_filename}')
+        print(f'oading weights from {model_filename}')
         state = torch.load(model_filename)
 
         # continue from previous complete epoch
@@ -180,9 +245,11 @@ def train_model(config):
 
     loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1)
 
-    for epoch in range(initial_epoch, config['num_epochs']):
+    num_epochs = config['num_epochs']
+    for epoch in range(initial_epoch, num_epochs):
         model.train()
-        batch_iterator = tqdm(train_data_loader, desc=f'>>> Processing epoch {epoch:02d}')
+        batch_iterator = tqdm(train_data_loader, desc=f'processing epoch {epoch:02d}/{num_epochs - 1}')
+        batch_message_printer = lambda message: batch_iterator.write(message)
         for batch in batch_iterator:
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
             decoder_input = batch['decoder_input'].to(device) # (batch_size, seq_length)
@@ -210,6 +277,17 @@ def train_model(config):
             # update the weights
             optimizer.step()
             optimizer.zero_grad()
+
+            # run validation
+            run_validation(
+                model,
+                device,
+                validation_data_loader,
+                src_tokenizer,
+                target_tokenizer,
+                config['seq_length'],
+                batch_message_printer
+            )
 
             global_step += 1
 
