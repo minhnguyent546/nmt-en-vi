@@ -9,6 +9,8 @@ from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
+from pyvi import ViTokenizer # NLP lib for vietnamese
+
 from tqdm import tqdm # progress bar helper
 
 from pathlib import Path
@@ -20,9 +22,16 @@ from config import get_config, get_weights_file_path
 
 from transformer import Transformer, make_transformer
 
+def preprocess_vietnamese(text: str) -> str:
+    return ViTokenizer.tokenize(text)
+
 def create_iter_from_dataset(dataset, lang: str):
     for item in dataset:
-        yield item['translation'][lang]
+        text = item['translation'][lang]
+        if lang == 'vi':
+            text = preprocess_vietnamese(text)
+            print(text)
+        yield text
 
 def get_tokenzier(dataset, lang: str, config: dict) -> Tokenizer:
     tokenizer_dir = config['tokenizer_dir']
