@@ -1,0 +1,239 @@
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, random_split
+from torch.utils.tensorboard import SummaryWriter
+
+from datasets import load_dataset, Dataset
+from tokenizers import Tokenizer
+from tokenizers.models import WordLevel
+from tokenizers.trainers import WordLevelTrainer
+from tokenizers.pre_tokenizers import Whitespace
+
+from tqdm import tqdm # progress bar helper
+
+from pathlib import Path
+import json
+import warnings
+
+from dataset import BilingualDataset
+from config import get_config, get_weights_file_path
+
+from transformer import Transformer, make_transformer
+
+def create_iter_from_dataset(dataset, lang: str):
+    for item in dataset:
+        yield item['translation'][lang]
+
+def get_tokenzier(dataset, lang: str, config: dict) -> Tokenizer:
+    tokenizer_dir = config['tokenizer_dir']
+    tokenizer_basename = config['tokenizer_basename'].format(lang)
+    tokenizer_path = Path(tokenizer_dir) / tokenizer_basename
+    Path(tokenizer_dir).mkdir(parents=True, exist_ok=True)
+
+    if not Path.exists(tokenizer_path):
+        tokenizer = Tokenizer(WordLevel(unk_token='<UNK>'))
+        tokenizer.pre_tokenizer = Whitespace()
+        trainer = WordLevelTrainer(
+            min_frequency=2,
+            special_tokens=['<UNK>', '<PAD>', '<SOS>', '<EOS>']
+        )
+        dataset_iter = create_iter_from_dataset(dataset, lang)
+        tokenizer.train_from_iterator(dataset_iter, trainer=trainer)
+        tokenizer.enable_truncation(max_length=config['seq_length'] - 5) # reserve some space for special tokens
+        tokenizer.save(str(tokenizer_path))
+    else:
+        tokenizer = Tokenizer.from_file(str(tokenizer_path))
+
+    return tokenizer
+
+def create_json_dataset(src_file_path: str, target_file_path: str, json_file_path: str):
+    with open(src_file_path, 'r', encoding='utf-8') as src_file, \
+         open(target_file_path, 'r', encoding='utf-8') as target_file:
+        src_content = src_file.readlines();
+        target_content = target_file.readlines()
+        
+        assert len(src_content) == len(target_content), "The number of sentences in the source and target files must be the same"
+        data = []
+        for _src, _target in zip(src_content, target_content):
+            _src = _src.strip()
+            _target = _target.strip()
+            if _src != '' and _target != '':
+                data.append({
+                    'src': _src,
+                    'target': _target,
+                })
+        with open(json_file_path, 'w', encoding='utf-8') as json_file:
+            json.dump(data, json_file, ensure_ascii=False, indent=2)
+
+def get_dataset(config: dict) -> tuple[DataLoader, DataLoader, Tokenizer, Tokenizer]:
+    # create_json_dataset(config['train_src_data'], config['train_target_data'], config['train_json_data'])
+    # create_json_dataset(config['validation_src_data'], config['validation_target_data'], config['validation_json_data'])
+    raw_dataset = load_dataset(
+        path=config['dataset_path'],
+        name=config['dataset_name'],
+        split='train',
+    )
+
+    print('building tokenizers')
+    src_tokenizer = get_tokenzier(raw_dataset, config['src_lang'], config)
+    target_tokenizer = get_tokenzier(raw_dataset, config['target_lang'], config)
+
+    print('spliting dataset')
+    train_dataset_size = int(len(raw_dataset) * 0.9)
+    validation_dataset_size = len(raw_dataset) - train_dataset_size
+    raw_train_dataset, raw_validation_dataset = random_split(raw_dataset, [train_dataset_size, validation_dataset_size])
+
+    train_dataset = BilingualDataset(
+        raw_train_dataset,
+        src_tokenizer,
+        target_tokenizer,
+        config['src_lang'],
+        config['target_lang'],
+        config['seq_length']
+    )
+    validation_dataset = BilingualDataset(
+        raw_validation_dataset,
+        src_tokenizer,
+        target_tokenizer,
+        config['src_lang'],
+        config['target_lang'],
+        config['seq_length']
+    )
+
+    max_src_seq_length = 0
+    max_target_seq_length = 0
+    for item in raw_dataset:    
+        src_seq_length = len(src_tokenizer.encode(item['translation'][config['src_lang']]).ids)
+        target_seq_length = len(target_tokenizer.encode(item['translation'][config['target_lang']]).ids)
+        max_src_seq_length = max(max_src_seq_length, src_seq_length)
+        max_target_seq_length = max(max_target_seq_length, target_seq_length)
+
+    print('max_src_seq_legnth:', max_src_seq_length)
+    print('max_target_seq_length:', max_target_seq_length)
+    print('using seq_length:', config['seq_length'])
+
+    train_data_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)
+    validation_data_loader = DataLoader(validation_dataset, batch_size=1, shuffle=True)
+
+    return train_data_loader, validation_data_loader, src_tokenizer, target_tokenizer
+
+def run_validation(
+    model: Transformer,
+    device: str,
+    validation_data_loader: DataLoader,
+    src_tokenizer: Tokenizer,
+    target_tokenizer: Tokenizer,
+    global_state,
+    print_message,
+    summary_writer: SummaryWriter | None = None,
+    num_examples: int = 3,
+):
+    model.eval()
+    counter = 0
+
+    src_texts = []
+    target_textx = []
+    predicted_texts = []
+
+    with torch.no_grad():
+        # environment with no gradient calculation
+        for batch in validation_data_loader:
+            counter += 1
+            encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
+            encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
+
+            batch_size = encoder_input.size(0)
+            assert batch_size == 1, 'batch_size must be 1 for validation'
+
+def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Transformer:
+    model = make_transformer(
+        src_vocab_size,
+        target_vocab_size,
+        config['seq_length'],
+        config['seq_length'],
+        d_model=config['d_model'],
+        num_heads=config['num_heads'],
+        num_layers=config['num_layers'],
+        d_ffn=config['d_ffn'],
+        dropout_rate=config['dropout_rate']
+    )
+    return model
+
+def train_model(config):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print('using device:', device)
+
+    Path(config['model_dir']).mkdir(parents=True, exist_ok=True)
+
+    train_data_loader, validation_data_loader, src_tokenizer, target_tokenizer = get_dataset(config)
+    src_vocab_size = src_tokenizer.get_vocab_size()
+    target_vocab_size = target_tokenizer.get_vocab_size()
+    model = make_model(src_vocab_size, target_vocab_size, config).to(device)
+
+    # Tensorboard
+    summary_writer = SummaryWriter(config['experiment_name'])
+
+    # optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
+
+    initial_epoch = 0
+    global_step = 0
+    if config['preload']:
+        model_filename = get_weights_file_path(epoch=config['preload'], config=config)
+        print(f'>>> Loading weights from {model_filename}')
+        state = torch.load(model_filename)
+
+        # continue from previous complete epoch
+        initial_epoch = state['epoch'] + 1
+        
+        optimizer.load_state_dict(state['optimizer_state_dict'])
+        global_step = state['global_step']
+
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1)
+
+    for epoch in range(initial_epoch, config['num_epochs']):
+        model.train()
+        batch_iterator = tqdm(train_data_loader, desc=f'>>> Processing epoch {epoch:02d}')
+        for batch in batch_iterator:
+            encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
+            decoder_input = batch['decoder_input'].to(device) # (batch_size, seq_length)
+            encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
+            decoder_mask = batch['decoder_mask'].to(device) # (batch_size, 1, seq_length, seq_length)
+
+            encoder_output = model.encode(encoder_input, encoder_mask) # (batch_size, seq_length, d_model)
+            decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask) # (batch_size, seq_length, d_model)
+            projected_output = model.project(decoder_output) # (batch_size, seq_length, target_vocab_size)
+            label = batch['label'].to(device) # (batch_size, seq_length)
+
+            # calculate the loss
+            # projected_output: (batch_size * seq_length, target_vocab_size)
+            # label: (batch_size * seq_length)
+            loss = loss_function(projected_output.view(-1, target_tokenizer.get_vocab_size()), label.view(-1))
+
+            batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
+            # log the loss
+            summary_writer.add_scalar('loss', loss.item(), global_step)
+            summary_writer.flush()
+
+            # backpropagte the loss
+            loss.backward()
+
+            # update the weights
+            optimizer.step()
+            optimizer.zero_grad()
+
+            global_step += 1
+
+        # save the model after every epoch
+        model_filename = get_weights_file_path(f'{epoch:02d}', config)
+        torch.save({
+            'epoch': epoch,
+            'global_step': global_step,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+        }, model_filename)
+
+if __name__ == '__main__':
+    warnings.filterwarnings('ignore')
+    config = get_config()
+    train_model(config)
