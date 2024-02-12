@@ -42,8 +42,8 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
         pe = torch.zeros((max_seq_length, d_model))
-        positions = torch.arange(max_seq_length).unsqueeze(1) # (max_seq_length, 1)
-        div_term = torch.exp(-torch.arange(0, d_model, 2) * math.log(10000) / d_model)
+        positions = torch.arange(max_seq_length, dtype=torch.float).unsqueeze(1) # (max_seq_length, 1)
+        div_term = torch.exp(-torch.arange(0, d_model, 2, dtype=torch.float) * math.log(10000.0) / d_model)
 
         # calculate sine for even indices
         pe[:, ::2] = torch.sin(positions * div_term)
@@ -87,13 +87,12 @@ def scaled_dot_product(
         attention_probs (Tensor): softmax score, shape ``(batch_size, num_heads, q_length, k_length)``
     """
     d_k = q.size(-1)
-    attention_probs = q @ k.transpose(-2, -1) / math.sqrt(d_k)
+    attention_probs = (q @ k.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
-        attention_probs = attention_probs.masked_fill(mask == False, -1e9)
+        attention_probs.masked_fill_(mask == False, -1e9)
     attention_probs = Fun.softmax(attention_probs, dim=-1)
     values = attention_probs @ v
     return values, attention_probs
-
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, dropout_rate: float = 0.1):
@@ -150,6 +149,7 @@ class MultiHeadAttention(nn.Module):
         # x: (batch_size, num_heads, q_length, d_key)
         # attention_probs: (batch_size, num_heads, q_length, k_length)
         x, attention_probs = scaled_dot_product(q, k, v, mask=mask) 
+        self.attention_probs = attention_probs
 
         # (batch_size, q_length, d_model)
         x = x.transpose(1, 2).contiguous().view(batch_size, -1, self.d_model)
@@ -205,21 +205,44 @@ class PositionWiseFeedForward(nn.Module):
         x = self.linear_2(x)
         return x
 
+class ResidualConnection(nn.Module):
+    def __init__(self, features: int, dropout_rate: float = 0.1):
+        """
+        Args:
+            features (int): feature dimensions
+            dropout_rate (float): dropout rate
+        """
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout_rate)
+        self.norm = LayerNormalization(features)
+
+    def forward(self, x: Tensor, sublayer: nn.Module) -> Tensor:
+        """
+        Args:
+            x (Tensor): input tensor, shape ``(batch_size, seq_length, d_model)``
+            sublayer (nn.Module): sublayer module
+
+        Returns:
+            output (Tensor): shape ``(batch_size, seq_length, d_model)``
+        """
+        return x + self.dropout(sublayer(self.norm(x)))
+        # or maybe: self.norm(x + self.dropout(sublayer(x)))
+
 class EncoderLayer(nn.Module):
     def __init__(self, d_model: int, num_heads: int, d_ffn: int, dropout_rate: float = 0.1):
         """
         Args:
             d_model (int): dimension of the embedding vectors
             num_heads (int): number of attention heads
-            d_ffnn (int): dimension of feed-forward network
-            dropout (float): dropout rate
+            d_ffn (int): dimension of feed-forward network
+            dropout_rate (float): dropout rate
         """
         super().__init__()
         self.attention = MultiHeadAttention(d_model, num_heads, dropout_rate=dropout_rate)
-        self.attention_layer_norm = LayerNormalization(d_model)
+        self.attention_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
+
         self.position_wise_ffn = PositionWiseFeedForward(d_model, d_ffn, dropout_rate=dropout_rate)
-        self.ffn_layer_norm = LayerNormalization(d_model)
-        self.dropout = nn.Dropout(p=dropout_rate)
+        self.ffn_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
 
     def forward(self, inputs: Tensor, src_mask: Tensor | None = None) -> Tensor:
         """
@@ -232,21 +255,16 @@ class EncoderLayer(nn.Module):
         """
 
         # passing through multi head attention layer
-        residual = inputs.clone()
-        inputs = self.attention(inputs, inputs, inputs, mask=src_mask)
-
-        # residual connection
-        inputs = self.dropout(inputs)
-        inputs = self.attention_layer_norm(inputs + residual)
+        inputs = self.attention_residual_connection(
+            inputs,
+            lambda x: self.attention(x, x, x, mask=src_mask)
+        )
 
         # passing through position-wise feed-forward network
-        residual = inputs.clone()
-        inputs = self.position_wise_ffn(inputs)
-
-        # residual connection
-        inputs = self.dropout(inputs)
-        inputs = self.ffn_layer_norm(inputs + residual)
-
+        inputs = self.ffn_residual_connection(
+            inputs,
+            self.position_wise_ffn
+        )
         return inputs
 
 class Encoder(nn.Module):
@@ -271,6 +289,7 @@ class Encoder(nn.Module):
             [EncoderLayer(d_model, num_heads, d_ffn, dropout_rate=dropout_rate)
             for layer in range(num_layers)]
         )
+        self.norm = LayerNormalization(d_model)
 
     def forward(self, inputs: Tensor, src_mask: Tensor | None = None):
         """
@@ -283,6 +302,8 @@ class Encoder(nn.Module):
         """
         for layer in self.layers:
             inputs = layer(inputs, src_mask=src_mask)
+
+        inputs = self.norm(inputs)
         return inputs
 
 class DecoderLayer(nn.Module):
@@ -296,15 +317,13 @@ class DecoderLayer(nn.Module):
         """
         super().__init__()
         self.masked_attention = MultiHeadAttention(d_model, num_heads, dropout_rate=dropout_rate)
-        self.masked_attention_layer_norm = LayerNormalization(d_model)
+        self.masked_attention_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
 
         self.cross_attention = MultiHeadAttention(d_model, num_heads, dropout_rate=dropout_rate)
-        self.cross_attention_layer_norm = LayerNormalization(d_model)
+        self.cross_attention_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
 
         self.position_wise_ffn = PositionWiseFeedForward(d_model, d_ffn, dropout_rate=dropout_rate)
-        self.position_wise_ffn_layer_norm = LayerNormalization(d_model)
-
-        self.dropout = nn.Dropout(p=dropout_rate)
+        self.ffn_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
 
     def forward(
         self,
@@ -325,19 +344,22 @@ class DecoderLayer(nn.Module):
         """
 
         # passing through multi head attention layer
-        residual = target
-        target = self.masked_attention(target, target, target, mask=target_mask)
-        target = self.masked_attention_layer_norm(self.dropout(target) + residual)
+        target = self.masked_attention_residual_connection(
+            target,
+            lambda x: self.masked_attention(x, x, x, mask=target_mask)
+        )
 
         # passing through multi head cross attention layer
-        residual = target
-        target = self.cross_attention(target, src, src, mask=src_mask)
-        target = self.cross_attention_layer_norm(self.dropout(target) + residual)
+        target = self.cross_attention_residual_connection(
+            target,
+            lambda x: self.cross_attention(x, src, src, mask=src_mask)
+        )
 
         # passing through position wise feed forward network layer
-        residual = target
-        target = self.position_wise_ffn(target)
-        target = self.position_wise_ffn_layer_norm(self.dropout(target) + residual)
+        target = self.ffn_residual_connection(
+            target,
+            self.position_wise_ffn
+        )
         return target
 
 class Decoder(nn.Module):
@@ -367,6 +389,7 @@ class Decoder(nn.Module):
                 dropout_rate=dropout_rate
             ) for layer in range(num_layers)]
         )
+        self.norm = LayerNormalization(d_model)
 
     def forward(
         self,
@@ -388,6 +411,7 @@ class Decoder(nn.Module):
         for layer in self.layers:
             target = layer(src, target, src_mask, target_mask)
 
+        target = self.norm(target)
         return target
 
 class ProjectionLayer(nn.Module):
@@ -409,7 +433,7 @@ class ProjectionLayer(nn.Module):
         Returns:
             output (Tensor): shape ``(batch_size, seq_length, vocab_size)``
         """
-        x = Fun.log_softmax(self.projector(x), dim=-1)
+        x = self.projector(x)
         return x
 
 class Transformer(nn.Module):
@@ -498,7 +522,7 @@ def make_transformer(
         projector
     )
 
-    print('The number of parameters:', Util.count_parameters(transformer))
+    print('number of parameters:', Util.count_parameters(transformer))
 
     # initialize the parameters with Xavier/Glorot
     for param in transformer.parameters():
