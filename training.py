@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch import Tensor
+from torch import Tensor, device
 from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 
@@ -15,7 +15,6 @@ from pyvi import ViTokenizer # NLP lib for vietnamese
 from tqdm import tqdm # progress bar helper
 
 from pathlib import Path
-import json
 import warnings
 
 from dataset import BilingualDataset
@@ -24,15 +23,9 @@ from config import get_config, get_weights_file_path
 from transformer import Transformer, make_transformer
 from utils import create_mask
 
-def preprocess_vietnamese(text: str) -> str:
-    return ViTokenizer.tokenize(text)
-
 def create_iter_from_dataset(dataset, lang: str):
     for item in dataset:
-        text = item['translation'][lang]
-        if lang == 'vi':
-            text = preprocess_vietnamese(text)
-        yield text
+        yield item['translation'][lang]
 
 def get_tokenzier(dataset, lang: str, config: dict) -> Tokenizer:
     tokenizer_dir = config['tokenizer_dir']
@@ -57,13 +50,20 @@ def get_tokenzier(dataset, lang: str, config: dict) -> Tokenizer:
     return tokenizer
 
 def get_dataset(config: dict) -> tuple[DataLoader, DataLoader, Tokenizer, Tokenizer]:
-    # create_json_dataset(config['train_src_data'], config['train_target_data'], config['train_json_data'])
-    # create_json_dataset(config['validation_src_data'], config['validation_target_data'], config['validation_json_data'])
     raw_dataset = load_dataset(
         path=config['dataset_path'],
         name=config['dataset_name'],
         split='train',
     )
+
+    # preprocessing
+    print('preprocessing dataset')
+    raw_dataset = raw_dataset.map(lambda x: {
+        'translation': {
+            'vi': ViTokenizer.tokenize(x['translation']['vi']),
+            'en': x['translation']['en']
+        }
+    })
 
     print('building tokenizers')
     src_tokenizer = get_tokenzier(raw_dataset, config['src_lang'], config)
@@ -110,7 +110,7 @@ def get_dataset(config: dict) -> tuple[DataLoader, DataLoader, Tokenizer, Tokeni
 
 def greedy_decode(
     model: Transformer,
-    device: str,
+    device: device,
     src: Tensor,
     src_mask: Tensor,
     src_tokenizer: Tokenizer,
@@ -144,14 +144,14 @@ def greedy_decode(
 
 def run_validation(
     model: Transformer,
-    device: str,
+    device: device,
     validation_data_loader: DataLoader,
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
     seq_length: int,
     print_message,
     summary_writer: SummaryWriter | None = None,
-    num_examples: int = 3,
+    num_examples: int = 5,
 ):
     model.eval()
     counter = 0
@@ -179,8 +179,8 @@ def run_validation(
                 target_tokenizer,
                 seq_length
             )
-            src_text = batch['src_text']
-            target_text = batch['target_text']
+            src_text = batch['src_text'][0]
+            target_text = batch['target_text'][0]
             predicted_text = target_tokenizer.decode(model_output.detach().cpu().numpy())
 
             src_texts.append(src_text)
@@ -188,9 +188,9 @@ def run_validation(
             predicted_texts.append(predicted_text)
 
             print_message('-'*80)
-            print(f'source text: {src_text}')
-            print(f'target text: {target_text}')
-            print(f'predicted text: {predicted_text}')
+            print(f'[{counter}/{num_examples}] source   : {src_text}')
+            print(f'[{counter}/{num_examples}] target   : {target_text}')
+            print(f'[{counter}/{num_examples}] predicted: {predicted_text}')
 
             if counter == num_examples:
                 break
@@ -209,13 +209,14 @@ def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Tra
         num_heads=config['num_heads'],
         num_layers=config['num_layers'],
         d_ffn=config['d_ffn'],
-        dropout_rate=config['dropout_rate']
+        dropout_rate=config['dropout_rate'],
     )
     return model
 
 def train_model(config):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print('using device:', device)
+    print(f'using device {device}')
+    device = torch.device(device)
 
     Path(config['model_dir']).mkdir(parents=True, exist_ok=True)
 
@@ -234,7 +235,7 @@ def train_model(config):
     global_step = 0
     if config['preload'] is not None:
         model_filename = get_weights_file_path(epoch=config['preload'], config=config)
-        print(f'oading weights from {model_filename}')
+        print(f'loading weights from {model_filename}')
         state = torch.load(model_filename)
 
         # continue from previous complete epoch
@@ -243,13 +244,18 @@ def train_model(config):
         optimizer.load_state_dict(state['optimizer_state_dict'])
         global_step = state['global_step']
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1)
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1).to(device)
 
     num_epochs = config['num_epochs']
     for epoch in range(initial_epoch, num_epochs):
+        # clear cuda cache
+        torch.cuda.empty_cache()
+
         model.train()
+
         batch_iterator = tqdm(train_data_loader, desc=f'processing epoch {epoch:02d}/{num_epochs - 1}')
         batch_message_printer = lambda message: batch_iterator.write(message)
+        iter_counter = 0
         for batch in batch_iterator:
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
             decoder_input = batch['decoder_input'].to(device) # (batch_size, seq_length)
@@ -278,18 +284,20 @@ def train_model(config):
             optimizer.step()
             optimizer.zero_grad()
 
-            # run validation
-            run_validation(
-                model,
-                device,
-                validation_data_loader,
-                src_tokenizer,
-                target_tokenizer,
-                config['seq_length'],
-                batch_message_printer
-            )
+            if iter_counter % 1000 == 0:
+                # run validation
+                run_validation(
+                    model,
+                    device,
+                    validation_data_loader,
+                    src_tokenizer,
+                    target_tokenizer,
+                    config['seq_length'],
+                    batch_message_printer
+                )
 
             global_step += 1
+            iter_counter += 1
 
         # save the model after every epoch
         model_filename = get_weights_file_path(f'{epoch:02d}', config)

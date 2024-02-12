@@ -6,5 +6,5 @@ def count_parameters(model):
     )
 
 def create_mask(seq_length: int):
-    tril_mask = torch.tril(torch.ones(1, seq_length, seq_length), diagonal=1).int() # (1, seq_length, seq_length)
+    tril_mask = torch.tril(torch.ones(1, seq_length, seq_length)).bool() # (1, seq_length, seq_length)
     return tril_mask

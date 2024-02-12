@@ -25,13 +25,17 @@ class BilingualDataset(Dataset):
         self.target_lang = target_lang
         self.seq_length = seq_length
 
+        assert src_tokenizer.token_to_id('<SOS>') == target_tokenizer.token_to_id('<SOS>')
+        assert src_tokenizer.token_to_id('<EOS>') == target_tokenizer.token_to_id('<EOS>')
+        assert src_tokenizer.token_to_id('<PAD>') == target_tokenizer.token_to_id('<PAD>')
+
         sos_token_id = src_tokenizer.token_to_id('<SOS>')
         eos_token_id = src_tokenizer.token_to_id('<EOS>')
         pad_token_id = src_tokenizer.token_to_id('<PAD>')
 
         self.sos_token = Tensor([sos_token_id]).type(torch.int64)
-        self.eos_token = Tensor([sos_token_id]).type(torch.int64)
-        self.pad_token = Tensor([sos_token_id]).type(torch.int64)
+        self.eos_token = Tensor([eos_token_id]).type(torch.int64)
+        self.pad_token = Tensor([pad_token_id]).type(torch.int64)
 
     def __len__(self):
         return len(self.dataset)
@@ -72,7 +76,7 @@ class BilingualDataset(Dataset):
 
         encoder_mask = (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() # (1, 1, seq_length)
         tril_mask = create_mask(self.seq_length) # (1, seq_length, seq_length)
-        decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() & tril_mask # (1, seq_length, seq_length)
+        decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).int() & tril_mask # (1, seq_length, seq_length)
 
         return {
             'src_text': src_text,
