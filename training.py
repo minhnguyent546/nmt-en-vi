@@ -236,13 +236,14 @@ def train_model(config):
     if config['preload'] is not None:
         model_filename = get_weights_file_path(epoch=config['preload'], config=config)
         print(f'loading weights from {model_filename}')
-        state = torch.load(model_filename)
+        states = torch.load(model_filename)
 
-        # continue from previous complete epoch
-        initial_epoch = state['epoch'] + 1
+        # continue from previous completed epoch
+        initial_epoch = states['epoch'] + 1
         
-        optimizer.load_state_dict(state['optimizer_state_dict'])
-        global_step = state['global_step']
+        model.load_state_dict(states['model_state_dict'])
+        optimizer.load_state_dict(states['optimizer_state_dict'])
+        global_step = states['global_step']
 
     loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1).to(device)
 
@@ -284,7 +285,7 @@ def train_model(config):
             optimizer.step()
             optimizer.zero_grad()
 
-            if iter_counter % 1000 == 0:
+            if iter_counter % 10 == 0:
                 # run validation
                 run_validation(
                     model,
