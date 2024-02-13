@@ -3,7 +3,7 @@ from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as Fun
 import math
-import utils as Util
+import utils.model_util as model_util
 
 class Embeddings(nn.Module):
     def __init__(self, vocab_size: int, d_model: int):
@@ -522,7 +522,7 @@ def make_transformer(
         projector
     )
 
-    print('number of parameters:', Util.count_parameters(transformer))
+    print('number of parameters:', model_util.count_parameters(transformer))
 
     # initialize the parameters with Xavier/Glorot
     for param in transformer.parameters():

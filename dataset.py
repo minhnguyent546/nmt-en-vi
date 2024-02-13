@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 
 from tokenizers import Tokenizer
 
-from utils import create_mask
+import utils.model_util as model_util
 
 class BilingualDataset(Dataset):
     def __init__(
@@ -75,7 +75,7 @@ class BilingualDataset(Dataset):
         assert label.size(0) == self.seq_length
 
         encoder_mask = (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() # (1, 1, seq_length)
-        tril_mask = create_mask(self.seq_length) # (1, seq_length, seq_length)
+        tril_mask = model_util.create_mask(self.seq_length) # (1, seq_length, seq_length)
         decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).int() & tril_mask # (1, seq_length, seq_length)
 
         return {

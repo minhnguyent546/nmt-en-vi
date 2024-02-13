@@ -1,4 +1,5 @@
 __pycache__
-/dataset-old
-draft.py
 /tokenizers
+/runs
+/weights
+/draft.py
