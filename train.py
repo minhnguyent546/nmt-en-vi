@@ -271,9 +271,10 @@ def train_model(config):
 
         model.train()
 
+        epoch_loss = 0.0
         batch_iterator = tqdm(train_data_loader, desc=f'processing epoch {epoch + 1:02d}/{num_epochs:02d}')
         batch_message_printer = lambda message: batch_iterator.write(message)
-        for batch in batch_iterator:
+        for batch_idx, batch in enumerate(batch_iterator):
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
             decoder_input = batch['decoder_input'].to(device) # (batch_size, seq_length)
             encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
@@ -303,7 +304,7 @@ def train_model(config):
 
             running_loss += loss.item()
 
-            if (global_step + 1) % log_step == 0:
+            if isinstance(log_step, int) and (batch_idx + 1) % log_step == 0:
                 # run validation
                 evaluate_model(
                     model,
@@ -322,6 +323,22 @@ def train_model(config):
                 running_loss = 0.0
 
             global_step += 1
+
+        if isinstance(log_step, str) and log_step.lower() == 'epoch':
+            evaluate_model(
+                model,
+                device,
+                validation_data_loader,
+                src_tokenizer,
+                target_tokenizer,
+                config['seq_length'],
+                global_step,
+                batch_message_printer,
+                writer=writer,
+                num_samples=config['num_eval_samples'],
+            )
+            writer.add_scalar('loss/epoch_loss', epoch_loss / len(batch_iterator), global_step)
+            writer.flush()
 
         # save the model after every epoch
         model_filename = get_weights_file_path(f'{epoch:02d}', config)
