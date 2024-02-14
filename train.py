@@ -209,7 +209,8 @@ def evaluate_model(
 
     if writer is not None:
         _bleu_score = bleu_score(predicted_texts, target_texts, max_n=4)
-        writer.add_scalar('evaluation bleu score', _bleu_score, global_step=0)
+        writer.add_scalar('evaluation bleu score', _bleu_score, global_step=global_step)
+        writer.flush()
         print('>> evaluation bleu score:', _bleu_score)
 
 def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Transformer:
@@ -316,6 +317,7 @@ def train_model(config):
                     num_examples=3,
                 )
                 writer.add_scalar('loss/running_loss', running_loss / log_step, global_step)
+                writer.flush()
                 running_loss = 0.0
 
             global_step += 1
