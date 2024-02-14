@@ -18,21 +18,11 @@ def split_dataset(dataset, split_rate: float = 0.9):
 
 def preprocess_sentences(dataset):
     return dataset.map(lambda x: {
-        'vi': ViTokenizer.tokenize(x['translation']['vi']).lower(),
-        'en': x['translation']['en'].lower(),
+        'translation': {
+            'en': x['translation']['en'].lower(),
+            'vi': ViTokenizer.tokenize(x['translation']['vi']).lower(),
+        }
     })
-
-def is_valid_sentence(
-    item: dict,
-    src_tokenizer: Tokenizer,
-    target_tokenizer: Tokenizer,
-    max_seq_length: int
-) -> bool:
-    src_tokens_len = len(src_tokenizer.encode(item['vi']).ids)
-    target_tokens_len = len(target_tokenizer.encode(item['en']).ids)
-
-    return min(src_tokens_len, target_tokens_len) > 0 and \
-           max(src_tokens_len, target_tokens_len) <= max_seq_length
 
 def remove_invalid_sentences(
     dataset,
@@ -42,12 +32,12 @@ def remove_invalid_sentences(
 ):
     result = []
     for item in dataset:
-        src_tokens_len = len(src_tokenizer.encode(item['vi']).ids)
-        target_tokens_len = len(target_tokenizer.encode(item['en']).ids)
+        src_tokens_len = len(src_tokenizer.encode(item['translation']['vi']).ids)
+        target_tokens_len = len(target_tokenizer.encode(item['translation']['en']).ids)
 
         if min(src_tokens_len, target_tokens_len) > 0 and \
            max(src_tokens_len, target_tokens_len) <= max_seq_length:
            result.append(item)
+
+    print(f'--> removed {len(dataset) - len(result)} invalid sentences')
     return result
-
-
