@@ -15,6 +15,7 @@ def get_config():
         'batch_size': 15,
         'num_epochs': 20,
         'log_step': 5,
+        'num_eval_samples': 5,
         'learning_rate': 1e-4,
         'seq_length': 80,
         'd_model': 512,

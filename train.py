@@ -158,7 +158,7 @@ def evaluate_model(
     global_step: int,
     print_message,
     writer: SummaryWriter | None = None,
-    num_examples: int = -1,
+    num_samples: int = -1,
 ):
     model.eval()
     counter = 0
@@ -172,6 +172,7 @@ def evaluate_model(
         for batch in validation_data_loader:
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
             encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
+            label = batch['label'].to(device)
 
             batch_size = encoder_input.size(0)
             assert batch_size == 1, 'batch_size must be 1 for validation'
@@ -199,12 +200,12 @@ def evaluate_model(
             predicted_texts.append([token for token in predicted_text_tokens if token != '<UNK>'])
 
             print_message('-'*80)
-            print(f'[{counter + 1}/{num_examples}] source   : {src_text}')
-            print(f'[{counter + 1}/{num_examples}] target   : {target_text}')
-            print(f'[{counter + 1}/{num_examples}] predicted: {predicted_text}')
+            print(f'[{counter + 1}/{num_samples}] source   : {src_text}')
+            print(f'[{counter + 1}/{num_samples}] target   : {target_text}')
+            print(f'[{counter + 1}/{num_samples}] predicted: {predicted_text}')
 
             counter += 1
-            if num_examples > 0 and counter == num_examples:
+            if num_samples > 0 and counter == num_samples:
                 break
 
     if writer is not None:
@@ -270,7 +271,7 @@ def train_model(config):
 
         model.train()
 
-        batch_iterator = tqdm(train_data_loader, desc=f'processing epoch {epoch:02d}/{num_epochs - 1}')
+        batch_iterator = tqdm(train_data_loader, desc=f'processing epoch {epoch + 1:02d}/{num_epochs:02d}')
         batch_message_printer = lambda message: batch_iterator.write(message)
         for batch in batch_iterator:
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
@@ -281,12 +282,12 @@ def train_model(config):
             encoder_output = model.encode(encoder_input, encoder_mask) # (batch_size, seq_length, d_model)
             decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask) # (batch_size, seq_length, d_model)
             projected_output = model.project(decoder_output) # (batch_size, seq_length, target_vocab_size)
-            label = batch['label'].to(device) # (batch_size, seq_length)
+            labels = batch['label'].to(device) # (batch_size, seq_length)
 
             # calculate the loss
             # projected_output: (batch_size * seq_length, target_vocab_size)
             # label: (batch_size * seq_length)
-            loss = loss_function(projected_output.view(-1, target_tokenizer.get_vocab_size()), label.view(-1))
+            loss = loss_function(projected_output.view(-1, target_tokenizer.get_vocab_size()), labels.view(-1))
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
             # log the loss
@@ -314,7 +315,7 @@ def train_model(config):
                     global_step,
                     batch_message_printer,
                     writer=writer,
-                    num_examples=3,
+                    num_samples=config['num_eval_samples'],
                 )
                 writer.add_scalar('loss/running_loss', running_loss / log_step, global_step)
                 writer.flush()
