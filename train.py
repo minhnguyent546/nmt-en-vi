@@ -238,7 +238,9 @@ def train_model(config):
     train_data_loader, validation_data_loader, src_tokenizer, target_tokenizer = get_dataset(config)
     src_vocab_size = src_tokenizer.get_vocab_size()
     target_vocab_size = target_tokenizer.get_vocab_size()
-    model = make_model(src_vocab_size, target_vocab_size, config).to(device)
+
+    model = make_model(src_vocab_size, target_vocab_size, config)
+    model.to(device)
 
     # Tensorboard
     writer = SummaryWriter(config['experiment_name'])
@@ -260,7 +262,7 @@ def train_model(config):
         optimizer.load_state_dict(states['optimizer_state_dict'])
         global_step = states['global_step']
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1).to(device)
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1)
 
     num_epochs = config['num_epochs']
     log_step = config['log_step']
