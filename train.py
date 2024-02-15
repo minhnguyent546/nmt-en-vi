@@ -155,7 +155,7 @@ def evaluate_model(
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
     seq_length: int,
-    global_step: int,
+    epoch: int,
     print_message,
     writer: SummaryWriter | None = None,
     num_samples: int = -1,
@@ -216,7 +216,7 @@ def evaluate_model(
 
     if writer is not None:
         _bleu_score = bleu_score(predicted_texts, target_texts, max_n=4)
-        writer.add_scalar('evaluation bleu score', _bleu_score, global_step=global_step)
+        writer.add_scalar('evaluation bleu score', _bleu_score, global_step=epoch)
         writer.flush()
         print('>> evaluation bleu score:', _bleu_score)
 
@@ -311,6 +311,7 @@ def train_model(config):
             optimizer.zero_grad()
 
             running_loss += loss.item()
+            epoch_loss += loss.item()
 
             if isinstance(log_step, int) and (batch_idx + 1) % log_step == 0:
                 # run validation
@@ -321,7 +322,7 @@ def train_model(config):
                     src_tokenizer,
                     target_tokenizer,
                     config['seq_length'],
-                    global_step,
+                    epoch,
                     batch_message_printer,
                     writer=writer,
                     num_samples=config['num_eval_samples'],
@@ -340,12 +341,12 @@ def train_model(config):
                 src_tokenizer,
                 target_tokenizer,
                 config['seq_length'],
-                global_step,
+                epoch,
                 batch_message_printer,
                 writer=writer,
                 num_samples=config['num_eval_samples'],
             )
-            writer.add_scalar('loss/epoch_loss', epoch_loss / len(batch_iterator), global_step)
+            writer.add_scalar('loss/epoch_loss', epoch_loss / len(batch_iterator), epoch)
             writer.flush()
 
         # save the model after every epoch
