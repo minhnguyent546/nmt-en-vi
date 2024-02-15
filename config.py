@@ -22,5 +22,6 @@ def get_config():
         'num_layers': 6,
         'd_ffn': 2048,
         'dropout_rate': 0.1,
+        'grad_clipping': 1.0,
     }
     return config

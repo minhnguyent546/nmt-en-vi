@@ -304,8 +304,11 @@ def train_model(config):
             writer.add_scalar('loss/batch_loss', loss.item(), global_step)
             writer.flush()
 
-            # backpropagte the loss
+            # backpropagate the loss
             loss.backward()
+
+            # clipping the gradient
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['grad_clipping'])
 
             # update the weights
             optimizer.step()
