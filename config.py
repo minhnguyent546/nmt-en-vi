@@ -1,4 +1,3 @@
-from pathlib import Path
 
 def get_config():
     config = {
@@ -25,9 +24,3 @@ def get_config():
         'dropout_rate': 0.1,
     }
     return config
-
-def get_weights_file_path(epoch: str, config: dict) -> str:
-    model_dir = config['model_dir']
-    model_basename = config['model_basename']
-    model_file = f"{model_basename}_{epoch}.pt"
-    return str(Path(model_dir) / model_file)

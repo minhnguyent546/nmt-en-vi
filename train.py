@@ -17,7 +17,7 @@ from pathlib import Path
 import warnings
 
 from dataset import BilingualDataset
-from config import get_config, get_weights_file_path
+from config import get_config
 
 from transformer import Transformer, make_transformer
 
@@ -256,8 +256,9 @@ def train_model(config):
 
     initial_epoch = 0
     global_step = 0
-    if config['preload'] is not None:
-        model_filename = get_weights_file_path(epoch=config['preload'], config=config)
+    _preload = config['preload']
+    if _preload is not None:
+        model_filename = model_util.get_weights_file_path(epoch=f'{_preload:0>2}', config=config)
         print(f'loading weights from {model_filename}')
         states = torch.load(model_filename)
 
@@ -350,7 +351,7 @@ def train_model(config):
             writer.flush()
 
         # save the model after every epoch
-        model_filename = get_weights_file_path(f'{epoch:02d}', config)
+        model_filename = model_util.get_weights_file_path(f'{epoch:02d}', config)
         torch.save({
             'epoch': epoch,
             'global_step': global_step,
