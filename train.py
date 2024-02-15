@@ -122,7 +122,7 @@ def greedy_search_decode(
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
     seq_length: int
-):
+) -> Tensor:
     sos_token_id = target_tokenizer.token_to_id('<SOS>')
     eos_token_id = target_tokenizer.token_to_id('<EOS>')
 
@@ -159,7 +159,7 @@ def evaluate_model(
     print_message,
     writer: SummaryWriter | None = None,
     num_samples: int = -1,
-):
+) -> None:
     model.eval()
     counter = 0
 
@@ -171,6 +171,7 @@ def evaluate_model(
 
     with torch.no_grad():
         # environment with no gradient calculation
+        ignored_tokens = ['<UNK>']
         for batch in validation_data_loader:
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
             encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
@@ -193,18 +194,21 @@ def evaluate_model(
             target_text = batch['target_text'][0]
             predicted_text = target_tokenizer.decode(model_output.detach().cpu().numpy())
 
-            src_text_tokens = src_tokenizer.encode(src_text).tokens
-            target_text_tokens = target_tokenizer.encode(target_text).tokens
-            predicted_text_tokens = target_tokenizer.encode(predicted_text).tokens
+            src_text_tokens = [token for token in src_tokenizer.encode(src_text).tokens if token not in ignored_tokens]
+            target_text_tokens = [token for token in target_tokenizer.encode(target_text).tokens if token not in ignored_tokens]
+            predicted_text_tokens = [token for token in target_tokenizer.encode(predicted_text).tokens if token not in ignored_tokens]
 
-            src_texts.append([token for token in src_text_tokens if token != '<UNK>'])
-            target_texts.append([[token for token in target_text_tokens if token != '<UNK>']])
-            predicted_texts.append([token for token in predicted_text_tokens if token != '<UNK>'])
+            src_texts.append(src_text_tokens)
+            target_texts.append([target_text_tokens])
+            predicted_texts.append(predicted_text_tokens)
+
+            batch_bleu_score = bleu_score([predicted_text_tokens], [[target_text_tokens]], max_n=4)
 
             print_message('-'*80)
-            print(f'[{counter + 1}/{num_samples}] source   : {src_text}')
-            print(f'[{counter + 1}/{num_samples}] target   : {target_text}')
-            print(f'[{counter + 1}/{num_samples}] predicted: {predicted_text}')
+            print_message(f'[{counter + 1}/{num_samples}] source   : {src_text}')
+            print_message(f'[{counter + 1}/{num_samples}] target   : {target_text}')
+            print_message(f'[{counter + 1}/{num_samples}] predicted: {predicted_text}')
+            print_message(f'[{counter + 1}/{num_samples}] bleu score: {batch_bleu_score}')
 
             counter += 1
             if counter == num_samples:
