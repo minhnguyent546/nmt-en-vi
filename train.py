@@ -166,6 +166,8 @@ def evaluate_model(
     src_texts = []
     target_texts = []
     predicted_texts = []
+    if num_samples == -1:
+        num_samples = len(validation_data_loader)
 
     with torch.no_grad():
         # environment with no gradient calculation
@@ -205,7 +207,7 @@ def evaluate_model(
             print(f'[{counter + 1}/{num_samples}] predicted: {predicted_text}')
 
             counter += 1
-            if num_samples > 0 and counter == num_samples:
+            if counter == num_samples:
                 break
 
     if writer is not None:
