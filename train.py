@@ -202,23 +202,52 @@ def evaluate_model(
             target_texts.append([target_text_tokens])
             predicted_texts.append(predicted_text_tokens)
 
-            batch_bleu_score = bleu_score([predicted_text_tokens], [[target_text_tokens]], max_n=4)
+            batch_bleu_scores = []
+            for n_gram in range(1, 5):
+                score = bleu_score(
+                    [predicted_text_tokens],
+                    [[target_text_tokens]],
+                    max_n=n_gram,
+                    weights=[1 / n_gram] * n_gram
+                )
+                batch_bleu_scores.append(score)
 
             print_message('-'*80)
-            print_message(f'[{counter + 1}/{num_samples}] source   : {src_text}')
-            print_message(f'[{counter + 1}/{num_samples}] target   : {target_text}')
-            print_message(f'[{counter + 1}/{num_samples}] predicted: {predicted_text}')
-            print_message(f'[{counter + 1}/{num_samples}] bleu score: {batch_bleu_score}')
+            print_message(f'[{counter + 1}/{num_samples}] source    : {src_text}')
+            print_message(f'[{counter + 1}/{num_samples}] target    : {target_text}')
+            print_message(f'[{counter + 1}/{num_samples}] predicted : {predicted_text}')
+            print_message(f'[{counter + 1}/{num_samples}] BLEU-1    : {batch_bleu_scores[0]:0.3f}')
+            print_message(f'[{counter + 1}/{num_samples}] BLEU-2    : {batch_bleu_scores[1]:0.3f}')
+            print_message(f'[{counter + 1}/{num_samples}] BLEU-3    : {batch_bleu_scores[2]:0.3f}')
+            print_message(f'[{counter + 1}/{num_samples}] BLEU-4    : {batch_bleu_scores[3]:0.3f}')
 
             counter += 1
             if counter == num_samples:
                 break
 
     if writer is not None:
-        _bleu_score = bleu_score(predicted_texts, target_texts, max_n=4)
-        writer.add_scalar('evaluation bleu score', _bleu_score, global_step=epoch)
+        eval_bleu_scores = []
+        for n_gram in range(1, 5):
+            score = bleu_score(
+                predicted_texts,
+                target_texts,
+                max_n=n_gram,
+                weights=[1 / n_gram] * n_gram
+            )
+            eval_bleu_scores.append(score)
+
+        scalars = {
+            'BLEU-1': eval_bleu_scores[0],
+            'BLEU-2': eval_bleu_scores[1],
+            'BLEU-3': eval_bleu_scores[2],
+            'BLEU-4': eval_bleu_scores[3],
+        }
+        writer.add_scalars('evaluation/BLEU', scalars, global_step=epoch)
         writer.flush()
-        print('>> evaluation bleu score:', _bleu_score)
+        print_message(f'Evaluation BLEU-1: {eval_bleu_scores[0]:0.3f}')
+        print_message(f'Evaluation BLEU-2: {eval_bleu_scores[1]:0.3f}')
+        print_message(f'Evaluation BLEU-3: {eval_bleu_scores[2]:0.3f}')
+        print_message(f'Evaluation BLEU-4: {eval_bleu_scores[3]:0.3f}')
 
 def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Transformer:
     model = make_transformer(
