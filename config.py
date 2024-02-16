@@ -15,7 +15,8 @@ def get_config():
         'num_epochs': 20,
         'log_step': 5, # or 'epoch'
         'num_eval_samples': 5,
-        'learning_rate': 1e-4,
+        'init_lr': 0.4,
+        'n_warmup_steps': 4000,
         'seq_length': 80,
         'd_model': 512,
         'num_heads': 8,

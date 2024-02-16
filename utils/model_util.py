@@ -26,3 +26,11 @@ def get_latest_weights_file_path(config: dict) -> str | None:
         latest_file = sorted(saved_files)[-1]
         return str(latest_file)
     return None
+
+
+def get_lr_scale(step: int, init_lr: float, d_model: int = 512, n_warmup_steps: int = 4000) -> float:
+    """
+    according to: https://nlp.seas.harvard.edu/annotated-transformer/#optimizer
+    """
+    step = max(step, 1)
+    return init_lr * (d_model ** (-0.5)) * min(step ** (-0.5), step * n_warmup_steps ** (-1.5))
