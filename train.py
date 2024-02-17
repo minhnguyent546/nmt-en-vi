@@ -186,6 +186,7 @@ def beam_search_decode(
         for cand, log_score in cands:
             # do not expand the candidate that have reached <EOS> token
             if cand[0, -1].item() == eos_token_id:
+                new_cands.append((cand, log_score))
                 continue
 
             # create mask for decoder input
