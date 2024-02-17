@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as Fun
 from torch import Tensor, device
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -119,34 +120,102 @@ def greedy_search_decode(
     device: device,
     src: Tensor,
     src_mask: Tensor,
-    src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
     seq_length: int
 ) -> Tensor:
+    # assume batch_size is 1
     sos_token_id = target_tokenizer.token_to_id('<SOS>')
     eos_token_id = target_tokenizer.token_to_id('<EOS>')
 
     encoder_output = model.encode(src, src_mask) # (batch_size, seq_length, d_model)
 
-    # initialize decoder input (sos token)
+    # initialize decoder input that contains only <SOS> token
     decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
     for i in range(seq_length):
+        # create mask for decoder input
         decoder_mask = model_util.create_mask(decoder_input.size(1)).type_as(src_mask).to(device)
+
+        # decode
         decoder_output = model.decode(encoder_output, decoder_input, src_mask, decoder_mask)
 
-        # get the next token
+        # get token with highest probability
         projected_output = model.project(decoder_output[:, -1, :])
         next_token = torch.argmax(projected_output, dim=1)
 
+        # concatenate the next token to the decoder input for the next prediction
         decoder_input = torch.cat([
             decoder_input,
             torch.empty((1, 1)).type_as(src).fill_(next_token.item()).to(device)
         ], dim=1)
 
+        # if we reach the <EOS> token, then stop
         if next_token == eos_token_id:
             break
 
     return decoder_input.squeeze(0)
+
+def beam_search_decode(
+    model: Transformer,
+    device: device,
+    beam_size: int,
+    src: Tensor,
+    src_mask: Tensor,
+    target_tokenizer: Tokenizer,
+    seq_length: int,
+) -> Tensor:
+    # assume batch_size is 1
+    sos_token_id = target_tokenizer.token_to_id('<SOS>')
+    eos_token_id = target_tokenizer.token_to_id('<EOS>')
+
+    encoder_output = model.encode(src, src_mask) # (batch_size, seq_length, d_model)
+
+    # initialize decoder input that contains only <SOS> token
+    decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
+
+    # candidate list of tuple (decoder_input, log_score)
+    cands = [(decoder_input, 0.0)]
+    for i in range(seq_length):
+        new_cands = []
+
+        for cand, log_score in cands:
+            # do not expand the candidate that already has <EOS> token
+            if cand[0, -1].item() == eos_token_id:
+                continue
+
+            # create mask for decoder input
+            cand_mask = model_util.create_mask(cand.size(1)).type_as(src_mask).to(device)
+
+            # decode
+            output = model.decode(encoder_output, cand, src_mask, cand_mask)
+
+            # get next token probabilities
+            # projected_output: shape ``(1, target_vocab_size)``
+            # topk_prob       : shape ``(1, beam_size)``
+            # topk_token      : shape ``(1, beam_size)``
+            projected_output = model.project(output[:, -1, :])
+            projected_output = Fun.log_softmax(projected_output, dim=-1)
+            # get the top k largest tokens
+            topk_token_prob, topk_token = torch.topk(projected_output, beam_size, dim=1)
+            for j in range(beam_size):
+                # token: shape ``(1, 1)``
+                # token_prob: scalar
+                token = topk_token[0][j].unsqueeze(0).unsqueeze(0)
+                token_prob = topk_token_prob[0][j].item()
+
+                new_cand = torch.cat([
+                    cand,
+                    token
+                ], dim=1)
+
+                new_cands.append((new_cand, log_score + token_prob))
+
+        cands = sorted(new_cands, key=lambda x: x[1], reverse=True)
+        cands = cands[:beam_size]
+
+        if all([cand[0][-1].item() == eos_token_id for cand, _ in cands]):
+            break
+
+    return cands[0][0].squeeze(0)
 
 def evaluate_model(
     model: Transformer,
@@ -157,6 +226,7 @@ def evaluate_model(
     seq_length: int,
     epoch: int,
     print_message,
+    beam_size: int | None = None,
     writer: SummaryWriter | None = None,
     num_samples: int = -1,
 ) -> None:
@@ -180,15 +250,12 @@ def evaluate_model(
             batch_size = encoder_input.size(0)
             assert batch_size == 1, 'batch_size must be 1 for validation'
 
-            model_output = greedy_search_decode(
-                model,
-                device,
-                encoder_input,
-                encoder_mask,
-                src_tokenizer,
-                target_tokenizer,
-                seq_length
-            )
+            if beam_size is not None:
+                model_output = beam_search_decode(model, device, beam_size, encoder_input,
+                                                  encoder_mask, target_tokenizer, seq_length)
+            else:
+                model_output = greedy_search_decode(model, device, encoder_input,
+                                                    encoder_mask, target_tokenizer, seq_length)
 
             src_text = batch['src_text'][0]
             target_text = batch['target_text'][0]
@@ -236,13 +303,10 @@ def evaluate_model(
             )
             eval_bleu_scores.append(score)
 
-        scalars = {
-            'BLEU-1': eval_bleu_scores[0],
-            'BLEU-2': eval_bleu_scores[1],
-            'BLEU-3': eval_bleu_scores[2],
-            'BLEU-4': eval_bleu_scores[3],
-        }
-        writer.add_scalars('evaluation/BLEU', scalars, global_step=epoch)
+        writer.add_scalar('eval-BLEU/BLEU-1', eval_bleu_scores[0], global_step=epoch)
+        writer.add_scalar('eval-BLEU/BLEU-2', eval_bleu_scores[1], global_step=epoch)
+        writer.add_scalar('eval-BLEU/BLEU-3', eval_bleu_scores[2], global_step=epoch)
+        writer.add_scalar('eval-BLEU/BLEU-4', eval_bleu_scores[3], global_step=epoch)
         writer.flush()
         print_message(f'Evaluation BLEU-1: {eval_bleu_scores[0]:0.3f}')
         print_message(f'Evaluation BLEU-2: {eval_bleu_scores[1]:0.3f}')
@@ -370,6 +434,7 @@ def train_model(config):
                     config['seq_length'],
                     epoch,
                     batch_message_printer,
+                    beam_size=config['beam_size'],
                     writer=writer,
                     num_samples=config['num_eval_samples'],
                 )
@@ -389,6 +454,7 @@ def train_model(config):
                 config['seq_length'],
                 epoch,
                 batch_message_printer,
+                beam_size=config['beam_size'],
                 writer=writer,
                 num_samples=config['num_eval_samples'],
             )

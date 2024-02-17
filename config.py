@@ -12,6 +12,7 @@ def get_config():
         'src_lang': 'en',
         'target_lang': 'vi',
         'batch_size': 15,
+        'beam_size': 5,
         'num_epochs': 20,
         'log_step': 5, # or 'epoch'
         'num_eval_samples': 5,
