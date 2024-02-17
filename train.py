@@ -154,6 +154,12 @@ def greedy_search_decode(
 
     return decoder_input.squeeze(0)
 
+def length_penalty(length: int, alpha: float = 0.6) -> float:
+    """
+    as formula described in We at al. (2016)
+    """
+    return (5 + length) ** alpha / (5 + 1) ** alpha
+
 def beam_search_decode(
     model: Transformer,
     device: device,
@@ -178,7 +184,7 @@ def beam_search_decode(
         new_cands = []
 
         for cand, log_score in cands:
-            # do not expand the candidate that already has <EOS> token
+            # do not expand the candidate that have reached <EOS> token
             if cand[0, -1].item() == eos_token_id:
                 continue
 
@@ -193,7 +199,7 @@ def beam_search_decode(
             # topk_prob       : shape ``(1, beam_size)``
             # topk_token      : shape ``(1, beam_size)``
             projected_output = model.project(output[:, -1, :])
-            projected_output = Fun.log_softmax(projected_output, dim=-1)
+            projected_output = Fun.log_softmax(projected_output, dim=-1) / length_penalty(cand.size(1) + 1)
             # get the top k largest tokens
             topk_token_prob, topk_token = torch.topk(projected_output, beam_size, dim=1)
             for j in range(beam_size):
