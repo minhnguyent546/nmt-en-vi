@@ -309,11 +309,14 @@ def evaluate_model(
             )
             eval_bleu_scores.append(score)
 
-        writer.add_scalar('eval-BLEU/BLEU-1', eval_bleu_scores[0], global_step=epoch)
-        writer.add_scalar('eval-BLEU/BLEU-2', eval_bleu_scores[1], global_step=epoch)
-        writer.add_scalar('eval-BLEU/BLEU-3', eval_bleu_scores[2], global_step=epoch)
-        writer.add_scalar('eval-BLEU/BLEU-4', eval_bleu_scores[3], global_step=epoch)
+        writer.add_scalars('eval_BLEU', {
+            'BLEU-1': eval_bleu_scores[0],
+            'BLEU-2': eval_bleu_scores[1],
+            'BLEU-3': eval_bleu_scores[2],
+            'BLEU-4': eval_bleu_scores[3],
+        }, global_step=epoch)
         writer.flush()
+
         print_message(f'Evaluation BLEU-1: {eval_bleu_scores[0]:0.3f}')
         print_message(f'Evaluation BLEU-2: {eval_bleu_scores[1]:0.3f}')
         print_message(f'Evaluation BLEU-3: {eval_bleu_scores[2]:0.3f}')
