@@ -351,15 +351,8 @@ def train_model(config):
     writer = SummaryWriter(config['experiment_name'])
 
     # optimizer
-    init_lr = config['init_lr']
-    optimizer = torch.optim.Adam(model.parameters(), lr=init_lr)
-    # learning rate scheduler
-    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer,
-        lr_lambda=lambda step: model_util.get_lr_scale(step, init_lr,
-                                                        d_model=config['d_model'],
-                                                        n_warmup_steps=config['n_warmup_steps'])
-    )
+    learning_rate = config['learning_rate']
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     initial_epoch = 0
     global_step = 0
@@ -374,7 +367,6 @@ def train_model(config):
         
         model.load_state_dict(states['model_state_dict'])
         optimizer.load_state_dict(states['optimizer_state_dict'])
-        lr_scheduler.load_state_dict(states['lr_scheduler_state_dict'])
         global_step = states['global_step']
 
     loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1)
@@ -421,10 +413,6 @@ def train_model(config):
             # update weights and learning rate
             optimizer.step()
             optimizer.zero_grad()
-            lr_scheduler.step()
-            first_group_lr = optimizer.param_groups[0]['lr']
-            writer.add_scalar('learning rate', first_group_lr, global_step)
-            writer.flush()
 
             running_loss += loss.item()
             epoch_loss += loss.item()
@@ -474,7 +462,6 @@ def train_model(config):
             'global_step': global_step,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'lr_scheduler_state_dict': lr_scheduler.state_dict(),
         }, model_filename)
 
 if __name__ == '__main__':
