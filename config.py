@@ -3,8 +3,9 @@ def get_config():
     config = {
         'dataset_path': 'mt_eng_vietnamese',
         'dataset_name': 'iwslt2015-en-vi',
-        'tokenizer_dir': 'tokenizers',
+        'checkpoints_dir': 'checkpoints',
         'tokenizer_basename': 'tokenizer_{}.json',
+        'data_loaders_basename': 'data_loaders.pt',
         'model_dir': 'weights',
         'model_basename': 'transformer',
         'preload': None,
@@ -14,7 +15,6 @@ def get_config():
         'batch_size': 15,
         'beam_size': 5,
         'num_epochs': 20,
-        'log_step': 5, # or 'epoch'
         'num_eval_samples': 5,
         'learning_rate': 1e-4,
         'seq_length': 80,

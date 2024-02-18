@@ -522,7 +522,7 @@ def make_transformer(
         projector
     )
 
-    print('number of learnable parameters:', model_util.count_parameters(transformer))
+    print(f'Model has {model_util.count_parameters(transformer)} learnable parameters', )
 
     # initialize the parameters with Xavier/Glorot
     for param in transformer.parameters():

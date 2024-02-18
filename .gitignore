@@ -1,5 +1,4 @@
 __pycache__
-/tokenizers
+/checkpoints
 /runs
-/weights
 /draft.py
