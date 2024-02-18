@@ -51,6 +51,8 @@ def get_latest_weights_file_path(config: dict) -> str | None:
     if len(saved_files) > 0:
         latest_file = sorted(saved_files)[-1]
         return str(latest_file)
+
+    print(f'No model weights found at {model_dir}')
     return None
 
 def greedy_search_decode(
@@ -165,13 +167,13 @@ def beam_search_decode(
 def evaluate_model(
     model: Transformer,
     device: device,
-    validation_data_loader: DataLoader,
+    data_loader: DataLoader,
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
     seq_length: int,
-    epoch: int,
     print_message,
     beam_size: int | None = None,
+    epoch: int | None = None,
     writer: SummaryWriter | None = None,
     num_samples: int = -1,
 ) -> None:
@@ -182,18 +184,18 @@ def evaluate_model(
     target_texts = []
     predicted_texts = []
     if num_samples == -1:
-        num_samples = len(validation_data_loader)
+        num_samples = len(data_loader)
 
     with torch.no_grad():
         # environment with no gradient calculation
         ignored_tokens = ['<UNK>']
-        for batch in validation_data_loader:
+        for batch in data_loader:
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
             encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
             label = batch['label'].to(device)
 
             batch_size = encoder_input.size(0)
-            assert batch_size == 1, 'batch_size must be 1 for validation'
+            assert batch_size == 1, 'batch_size must be 1 for evaluation'
 
             if beam_size is not None:
                 model_output = beam_search_decode(model, device, beam_size, encoder_input,
@@ -237,17 +239,23 @@ def evaluate_model(
             if counter == num_samples:
                 break
 
-    if writer is not None:
-        eval_bleu_scores = []
-        for n_gram in range(1, 5):
-            score = bleu_score(
-                predicted_texts,
-                target_texts,
-                max_n=n_gram,
-                weights=[1 / n_gram] * n_gram
-            )
-            eval_bleu_scores.append(score)
+    eval_bleu_scores = []
+    for n_gram in range(1, 5):
+        score = bleu_score(
+            predicted_texts,
+            target_texts,
+            max_n=n_gram,
+            weights=[1 / n_gram] * n_gram
+        )
+        eval_bleu_scores.append(score)
 
+    print_message(f'Evaluation BLEU-1: {eval_bleu_scores[0]:0.3f}')
+    print_message(f'Evaluation BLEU-2: {eval_bleu_scores[1]:0.3f}')
+    print_message(f'Evaluation BLEU-3: {eval_bleu_scores[2]:0.3f}')
+    print_message(f'Evaluation BLEU-4: {eval_bleu_scores[3]:0.3f}')
+
+    if writer is not None:
+        assert epoch is not None, 'epoch must be provided when writer is not None'
         writer.add_scalars('eval_BLEU', {
             'BLEU-1': eval_bleu_scores[0],
             'BLEU-2': eval_bleu_scores[1],
@@ -255,8 +263,3 @@ def evaluate_model(
             'BLEU-4': eval_bleu_scores[3],
         }, global_step=epoch)
         writer.flush()
-
-        print_message(f'Evaluation BLEU-1: {eval_bleu_scores[0]:0.3f}')
-        print_message(f'Evaluation BLEU-2: {eval_bleu_scores[1]:0.3f}')
-        print_message(f'Evaluation BLEU-3: {eval_bleu_scores[2]:0.3f}')
-        print_message(f'Evaluation BLEU-4: {eval_bleu_scores[3]:0.3f}')

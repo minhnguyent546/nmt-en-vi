@@ -108,11 +108,11 @@ def train_model(config):
             src_tokenizer,
             target_tokenizer,
             config['seq_length'],
-            epoch,
             batch_message_printer,
             beam_size=config['beam_size'],
+            epoch=epoch,
             writer=writer,
-            num_samples=config['num_eval_samples'],
+            num_samples=config['num_validation_samples'],
         )
         writer.add_scalar('loss/epoch_loss', epoch_loss / len(batch_iterator), epoch)
         writer.flush()
