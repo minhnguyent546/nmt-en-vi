@@ -18,10 +18,13 @@ def get_config():
         'dropout_rate': 0.1,
 
         # optimization
-        'learning_rate': 1e-4,
+        'learning_rate': 1, # change lr to small value (e.g. 1e-4) if lr scheduler is disabled
+        'enable_lr_scheduler': True,
+        'warmup_steps': 4000,
         'label_smoothing': 0.1,
         'max_grad_norm': 1.0,
         'beam_size': 5,
+
 
         # dataset (hugging face)
         'dataset_path': 'mt_eng_vietnamese',

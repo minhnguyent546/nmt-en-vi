@@ -56,6 +56,13 @@ def get_latest_weights_file_path(config: dict) -> str | None:
     print(f'No model weights found at {model_dir}')
     return None
 
+def noam_decay_lr(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
+    """
+    As described in https://arxiv.org/pdf/1706.03762.pdf
+    """
+    step_num = max(step_num, 1)
+    return d_model ** (-0.5) * min(step_num ** (-0.5), step_num * warmup_steps ** (-1.5))
+
 def cal_bleu_score(
     candidate_corpus,
     references_corpus,
@@ -113,7 +120,7 @@ def greedy_search_decode(
 
 def length_penalty(length: int, alpha: float = 0.6) -> float:
     """
-    as formula described in We at al. (2016)
+    As formula described in We at al. (2016)
     """
     return (5 + length) ** alpha / (5 + 1) ** alpha
 

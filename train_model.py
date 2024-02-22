@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
@@ -37,9 +38,18 @@ def train_model(config):
     # Tensorboard
     writer = SummaryWriter(config['experiment_name'])
 
-    # optimizer
+    # optimizer and scheduler-
     learning_rate = config['learning_rate']
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    lr_scheduler = None
+    if config['enable_lr_scheduler']:
+        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=lambda step_num: learning_rate
+                                       * model_util.noam_decay_lr(step_num,
+                                                                  d_model=config['d_model'],
+                                                                  warmup_steps=config['warmup_steps'])
+        )
 
     initial_epoch = 0
     global_step = 0
@@ -54,6 +64,8 @@ def train_model(config):
         
         model.load_state_dict(states['model_state_dict'])
         optimizer.load_state_dict(states['optimizer_state_dict'])
+        if lr_scheduler is not None and 'lr_scheduler_state_dict' in states:
+            lr_scheduler.load_state_dict(states['lr_scheduler_state_dict'])
         global_step = states['global_step']
 
     loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN),
@@ -93,12 +105,17 @@ def train_model(config):
             # backpropagate the loss
             loss.backward()
 
-            # clipping the gradient
-            nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_grad_norm'])
+            if config['max_grad_norm'] > 0:
+                # clipping the gradient
+                nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_grad_norm'])
 
             # update weights and learning rate
             optimizer.step()
             optimizer.zero_grad()
+            if lr_scheduler is not None:
+                for i, _lr in enumerate(lr_scheduler.get_last_lr()):
+                    writer.add_scalar(f'learning_rate/group-{i}', _lr, global_step)
+                lr_scheduler.step()
 
             epoch_loss += loss.item()
             global_step += 1
@@ -120,13 +137,17 @@ def train_model(config):
         writer.flush()
 
         # save the model after every epoch
-        model_filename = model_util.get_weights_file_path(f'{epoch:02d}', config)
-        torch.save({
+        model_checkpoint_path = model_util.get_weights_file_path(f'{epoch:02d}', config)
+        checkpoint_dict = {
             'epoch': epoch,
             'global_step': global_step,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-        }, model_filename)
+        }
+        if lr_scheduler is not None:
+            checkpoint_dict['lr_scheduler_state_dict'] = lr_scheduler.state_dict()
+
+        torch.save(checkpoint_dict, model_checkpoint_path)
 
 if __name__ == '__main__':
     config = get_config()
