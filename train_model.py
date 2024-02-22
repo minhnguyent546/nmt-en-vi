@@ -56,7 +56,8 @@ def train_model(config):
         optimizer.load_state_dict(states['optimizer_state_dict'])
         global_step = states['global_step']
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN), label_smoothing=0.1)
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN),
+                                        label_smoothing=config['label_smoothing'])
 
     num_epochs = config['num_epochs']
     for epoch in range(initial_epoch, num_epochs):
@@ -93,7 +94,7 @@ def train_model(config):
             loss.backward()
 
             # clipping the gradient
-            nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['grad_clipping'])
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_grad_norm'])
 
             # update weights and learning rate
             optimizer.step()
