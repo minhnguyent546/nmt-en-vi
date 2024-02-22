@@ -77,13 +77,13 @@ def scaled_dot_product(
 ) -> tuple[Tensor, Tensor]:
     """
     Args:
-        query (Tensor): query tensor, shape ``(batch_size, num_heads, q_length, d_model)``
-        key (Tensor): key tensor, shape ``(batch_size, num_heads, k_length d_model)``
-        value (Tensor): value tensor, shape ``(batch_size, num_heads, v_length, d_model)``
+        query (Tensor): query tensor, shape ``(batch_size, num_heads, q_length, d_k)``
+        key (Tensor): key tensor, shape ``(batch_size, num_heads, k_length, d_k)``
+        value (Tensor): value tensor, shape ``(batch_size, num_heads, v_length, d_v)``
         mask (Tensor | None): mask for decoder
 
     Returns:
-        values (Tensor): attention tensor, shape ``(batch_size, num_heads, q_length, d_model)``
+        values (Tensor): attention tensor, shape ``(batch_size, num_heads, q_length, d_v)``
         attention_probs (Tensor): softmax score, shape ``(batch_size, num_heads, q_length, k_length)``
     """
     d_k = q.size(-1)
@@ -139,14 +139,14 @@ class MultiHeadAttention(nn.Module):
         v = self.w_v(value)
 
         # split q, k, v into multiple heads
-        # q: (batch_size, num_heads, q_length, d_key)
-        # k: (batch_size, num_heads, k_length, d_key)
-        # v: (batch_size, num_heads, v_length, d_key)
+        # q: (batch_size, num_heads, q_length, d_k)
+        # k: (batch_size, num_heads, k_length, d_k)
+        # v: (batch_size, num_heads, v_length, d_v)
         q = q.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
         k = k.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
         v = v.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
 
-        # x: (batch_size, num_heads, q_length, d_key)
+        # x: (batch_size, num_heads, q_length, d_v)
         # attention_probs: (batch_size, num_heads, q_length, k_length)
         x, attention_probs = scaled_dot_product(q, k, v, mask=mask) 
         self.attention_probs = attention_probs

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from config import get_config
 import utils.model_util as model_util
+import constants as const
 
 def train_model(config):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -55,7 +56,7 @@ def train_model(config):
         optimizer.load_state_dict(states['optimizer_state_dict'])
         global_step = states['global_step']
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id('<PAD>'), label_smoothing=0.1)
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN), label_smoothing=0.1)
 
     num_epochs = config['num_epochs']
     for epoch in range(initial_epoch, num_epochs):

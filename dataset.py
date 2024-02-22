@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 from tokenizers import Tokenizer
 
 import utils.model_util as model_util
+import constants as const
 
 class BilingualDataset(Dataset):
     def __init__(
@@ -25,13 +26,13 @@ class BilingualDataset(Dataset):
         self.target_lang = target_lang
         self.seq_length = seq_length
 
-        assert src_tokenizer.token_to_id('<SOS>') == target_tokenizer.token_to_id('<SOS>')
-        assert src_tokenizer.token_to_id('<EOS>') == target_tokenizer.token_to_id('<EOS>')
-        assert src_tokenizer.token_to_id('<PAD>') == target_tokenizer.token_to_id('<PAD>')
+        assert src_tokenizer.token_to_id(const.SOS_TOKEN) == target_tokenizer.token_to_id(const.SOS_TOKEN)
+        assert src_tokenizer.token_to_id(const.EOS_TOKEN) == target_tokenizer.token_to_id(const.EOS_TOKEN)
+        assert src_tokenizer.token_to_id(const.PAD_TOKEN) == target_tokenizer.token_to_id(const.PAD_TOKEN)
 
-        sos_token_id = src_tokenizer.token_to_id('<SOS>')
-        eos_token_id = src_tokenizer.token_to_id('<EOS>')
-        pad_token_id = src_tokenizer.token_to_id('<PAD>')
+        sos_token_id = src_tokenizer.token_to_id(const.SOS_TOKEN)
+        eos_token_id = src_tokenizer.token_to_id(const.EOS_TOKEN)
+        pad_token_id = src_tokenizer.token_to_id(const.PAD_TOKEN)
 
         self.sos_token = Tensor([sos_token_id]).type(torch.int64)
         self.eos_token = Tensor([eos_token_id]).type(torch.int64)

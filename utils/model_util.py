@@ -14,6 +14,7 @@ from pathlib import Path
 
 from transformer import Transformer, make_transformer
 import utils.model_util as model_util
+import constants as const
 
 def count_parameters(model) -> int:
     return sum(
@@ -55,6 +56,22 @@ def get_latest_weights_file_path(config: dict) -> str | None:
     print(f'No model weights found at {model_dir}')
     return None
 
+def cal_bleu_score(
+    candidate_corpus,
+    references_corpus,
+    max_n: int | list[int] = 4,
+    weights=[0.25] * 4
+) -> float | list[float]:
+    if isinstance(max_n, int):
+        return bleu_score(candidate_corpus, references_corpus, max_n=max_n, weights=weights)
+
+    scores = []
+    for n_gram in max_n:
+        cur_score = bleu_score(candidate_corpus, references_corpus, max_n=n_gram, weights=[1 / n_gram] * n_gram)
+        scores.append(cur_score)
+
+    return scores
+
 def greedy_search_decode(
     model: Transformer,
     device: device,
@@ -64,8 +81,8 @@ def greedy_search_decode(
     seq_length: int
 ) -> Tensor:
     # assume batch_size is 1
-    sos_token_id = target_tokenizer.token_to_id('<SOS>')
-    eos_token_id = target_tokenizer.token_to_id('<EOS>')
+    sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
+    eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
 
     encoder_output = model.encode(src, src_mask) # (batch_size, seq_length, d_model)
 
@@ -110,8 +127,8 @@ def beam_search_decode(
     seq_length: int,
 ) -> Tensor:
     # assume batch_size is 1
-    sos_token_id = target_tokenizer.token_to_id('<SOS>')
-    eos_token_id = target_tokenizer.token_to_id('<EOS>')
+    sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
+    eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
 
     encoder_output = model.encode(src, src_mask) # (batch_size, seq_length, d_model)
 
@@ -188,11 +205,10 @@ def evaluate_model(
 
     with torch.no_grad():
         # environment with no gradient calculation
-        ignored_tokens = ['<UNK>']
+        ignored_tokens = [const.UNK_TOKEN]
         for batch in data_loader:
             encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
             encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
-            label = batch['label'].to(device)
 
             batch_size = encoder_input.size(0)
             assert batch_size == 1, 'batch_size must be 1 for evaluation'
@@ -216,15 +232,7 @@ def evaluate_model(
             target_texts.append([target_text_tokens])
             predicted_texts.append(predicted_text_tokens)
 
-            batch_bleu_scores = []
-            for n_gram in range(1, 5):
-                score = bleu_score(
-                    [predicted_text_tokens],
-                    [[target_text_tokens]],
-                    max_n=n_gram,
-                    weights=[1 / n_gram] * n_gram
-                )
-                batch_bleu_scores.append(score)
+            batch_bleu_scores = cal_bleu_score([predicted_text_tokens], [[target_text_tokens]], max_n=[1, 2, 3, 4])
 
             print_message('-'*80)
             print_message(f'[{counter + 1}/{num_samples}] source    : {src_text}')
@@ -239,15 +247,7 @@ def evaluate_model(
             if counter == num_samples:
                 break
 
-    eval_bleu_scores = []
-    for n_gram in range(1, 5):
-        score = bleu_score(
-            predicted_texts,
-            target_texts,
-            max_n=n_gram,
-            weights=[1 / n_gram] * n_gram
-        )
-        eval_bleu_scores.append(score)
+    eval_bleu_scores = cal_bleu_score(predicted_texts, target_texts, max_n=[1, 2, 3, 4])
 
     print_message(f'Evaluation BLEU-1: {eval_bleu_scores[0]:0.3f}')
     print_message(f'Evaluation BLEU-2: {eval_bleu_scores[1]:0.3f}')

@@ -11,6 +11,7 @@ from dataset import BilingualDataset
 from config import get_config
 
 import utils.dataset_util as dataset_util
+import constants as const
 
 from pathlib import Path
 
@@ -19,11 +20,11 @@ def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> To
     tokenizer_path = checkpoints_dir / config['tokenizer_basename'].format(lang)
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-    tokenizer = Tokenizer(WordLevel(unk_token='<UNK>'))
+    tokenizer = Tokenizer(WordLevel(unk_token=const.UNK_TOKEN))
     tokenizer.pre_tokenizer = Whitespace()
     trainer = WordLevelTrainer(
         min_frequency=min_freq,
-        special_tokens=['<UNK>', '<PAD>', '<SOS>', '<EOS>']
+        special_tokens=[const.PAD_TOKEN, const.SOS_TOKEN, const.EOS_TOKEN, const.UNK_TOKEN]
     )
     dataset_iter = dataset_util.create_iter_from_dataset(dataset, lang)
     tokenizer.train_from_iterator(dataset_iter, trainer=trainer)
