@@ -28,12 +28,14 @@ def test_model(config):
     model.to(device)
 
     print('Loading latest model weights')
-    model_filename = model_util.get_latest_weights_file_path(config=config)
-    if model_filename is None:
+    model_latest_weights_path = model_util.get_latest_weights_file_path(config=config)
+    if model_latest_weights_path is None:
         print('Aborted!')
         exit(1)
 
-    states = torch.load(model_filename, map_location=torch.device('cpu'))
+    print(f'Loaded latest weights from: {model_latest_weights_path}')
+
+    states = torch.load(model_latest_weights_path)
 
     model.load_state_dict(states['model_state_dict'])
 

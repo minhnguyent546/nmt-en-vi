@@ -38,7 +38,7 @@ def train_model(config):
     # Tensorboard
     writer = SummaryWriter(config['experiment_name'])
 
-    # optimizer and scheduler-
+    # optimizer and lr scheduler
     learning_rate = config['learning_rate']
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     lr_scheduler = None

@@ -36,6 +36,7 @@ def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Tra
         num_layers=config['num_layers'],
         d_ffn=config['d_ffn'],
         dropout_rate=config['dropout_rate'],
+        attention_dropout_rate=config['attention_dropout_rate'],
     )
     return model
 
@@ -95,7 +96,7 @@ def greedy_search_decode(
 
     # initialize decoder input that contains only <SOS> token
     decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
-    for i in range(seq_length):
+    for _ in range(seq_length):
         # create mask for decoder input
         decoder_mask = model_util.create_mask(decoder_input.size(1)).type_as(src_mask).to(device)
 
@@ -144,7 +145,7 @@ def beam_search_decode(
 
     # candidate list of tuple (decoder_input, log_score)
     cands = [(decoder_input, 0.0)]
-    for i in range(seq_length):
+    for _ in range(seq_length):
         new_cands = []
 
         for cand, log_score in cands:

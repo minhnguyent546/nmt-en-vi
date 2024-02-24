@@ -73,7 +73,8 @@ def scaled_dot_product(
     q: Tensor,
     k: Tensor,
     v: Tensor,
-    mask: Tensor | None = None
+    mask: Tensor | None = None,
+    dropout: nn.Dropout | None = None,
 ) -> tuple[Tensor, Tensor]:
     """
     Args:
@@ -90,7 +91,11 @@ def scaled_dot_product(
     attention_probs = (q @ k.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         attention_probs.masked_fill_(mask == False, -1e9)
+
     attention_probs = Fun.softmax(attention_probs, dim=-1)
+    if dropout is not None:
+        attention_probs = dropout(attention_probs)
+
     values = attention_probs @ v
     return values, attention_probs
 
@@ -100,7 +105,7 @@ class MultiHeadAttention(nn.Module):
         Args:
             d_model (int): dimension of the embedding vectors
             num_heads (int): number of attention heads
-            dropout_rate (float): dropout rate
+            dropout_rate (float): dropout rate in attention
         """ 
         super().__init__()
         self.d_model = d_model
@@ -148,7 +153,7 @@ class MultiHeadAttention(nn.Module):
 
         # x: (batch_size, num_heads, q_length, d_v)
         # attention_probs: (batch_size, num_heads, q_length, k_length)
-        x, attention_probs = scaled_dot_product(q, k, v, mask=mask) 
+        x, attention_probs = scaled_dot_product(q, k, v, mask=mask, dropout=self.dropout)
         self.attention_probs = attention_probs
 
         # (batch_size, q_length, d_model)
@@ -229,16 +234,24 @@ class ResidualConnection(nn.Module):
         # or maybe: self.norm(x + self.dropout(sublayer(x)))
 
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, d_ffn: int, dropout_rate: float = 0.1):
+    def __init__(
+        self,
+        d_model: int,
+        num_heads: int,
+        d_ffn: int,
+        dropout_rate: float = 0.1,
+        attention_dropout_rate: float = 0.1,
+    ):
         """
         Args:
             d_model (int): dimension of the embedding vectors
             num_heads (int): number of attention heads
             d_ffn (int): dimension of feed-forward network
             dropout_rate (float): dropout rate
+            attention_dropout_rate (float): dropout rate in attention
         """
         super().__init__()
-        self.attention = MultiHeadAttention(d_model, num_heads, dropout_rate=dropout_rate)
+        self.attention = MultiHeadAttention(d_model, num_heads, dropout_rate=attention_dropout_rate)
         self.attention_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
 
         self.position_wise_ffn = PositionWiseFeedForward(d_model, d_ffn, dropout_rate=dropout_rate)
@@ -274,7 +287,8 @@ class Encoder(nn.Module):
         num_layers: int,
         num_heads: int,
         d_ffn: int,
-        dropout_rate: float = 0.1
+        dropout_rate: float = 0.1,
+        attention_dropout_rate: float = 0.1,
     ):
         """
         Args:
@@ -282,12 +296,17 @@ class Encoder(nn.Module):
             num_layers (int): number of encoder layers
             num_heads (int): number of attention heads
             d_ffnn (int): dimension of feed-forward network
-            dropout (float): dropout rate
+            dropout_rate (float): dropout rate
+            attention_dropout_rate (float): dropout rate in attention
         """
         super().__init__()
         self.layers = nn.ModuleList(
-            [EncoderLayer(d_model, num_heads, d_ffn, dropout_rate=dropout_rate)
-            for layer in range(num_layers)]
+            [EncoderLayer(d_model,
+                          num_heads,
+                          d_ffn,
+                          dropout_rate=dropout_rate,
+                          attention_dropout_rate=attention_dropout_rate)
+            for _ in range(num_layers)]
         )
         self.norm = LayerNormalization(d_model)
 
@@ -307,19 +326,27 @@ class Encoder(nn.Module):
         return inputs
 
 class DecoderLayer(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, d_ffn: int, dropout_rate: float = 0.1):
+    def __init__(
+        self,
+        d_model: int,
+        num_heads: int,
+        d_ffn: int,
+        dropout_rate: float = 0.1,
+        attention_dropout_rate: float = 0.1,
+    ):
         """
         Args:
             d_model (int): dimension of the embedding vectors
             num_heads (int): number of attention heads
             d_ffn (int): dimension of feed-forward network
-            dropout (float): dropout rate
+            dropout_rate (float): dropout rate
+            attention_dropout_rate (float): dropout rate in attention
         """
         super().__init__()
-        self.masked_attention = MultiHeadAttention(d_model, num_heads, dropout_rate=dropout_rate)
+        self.masked_attention = MultiHeadAttention(d_model, num_heads, dropout_rate=attention_dropout_rate)
         self.masked_attention_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
 
-        self.cross_attention = MultiHeadAttention(d_model, num_heads, dropout_rate=dropout_rate)
+        self.cross_attention = MultiHeadAttention(d_model, num_heads, dropout_rate=attention_dropout_rate)
         self.cross_attention_residual_connection = ResidualConnection(d_model, dropout_rate=dropout_rate)
 
         self.position_wise_ffn = PositionWiseFeedForward(d_model, d_ffn, dropout_rate=dropout_rate)
@@ -369,7 +396,8 @@ class Decoder(nn.Module):
         num_layers: int,
         num_heads: int,
         d_ffn: int,
-        dropout_rate: float = 0.1
+        dropout_rate: float = 0.1,
+        attention_dropout_rate: float = 0.1,
     ):
         """
         Args:
@@ -377,17 +405,18 @@ class Decoder(nn.Module):
             num_layers (int): number of decoder layers
             num_heads (int): number of attention heads
             d_ffn (int): dimension of feed-forward network
-            dropout (float): dropout rate
+            dropout_rate (float): dropout rate
+            attention_dropout_rate (float): dropout rate in attention
         """  
 
         super().__init__()
         self.layers = nn.ModuleList(
-            [DecoderLayer(
-                d_model,
-                num_heads,
-                d_ffn,
-                dropout_rate=dropout_rate
-            ) for layer in range(num_layers)]
+            [DecoderLayer(d_model,
+                          num_heads,
+                          d_ffn,
+                          dropout_rate=dropout_rate,
+                          attention_dropout_rate=attention_dropout_rate)
+            for _ in range(num_layers)]
         )
         self.norm = LayerNormalization(d_model)
 
@@ -499,6 +528,7 @@ def make_transformer(
     num_layers: int = 6,
     d_ffn: int = 2048,
     dropout_rate: float = 0.1,
+    attention_dropout_rate: float = 0.1,
 ) -> Transformer:
     src_embed = Embeddings(src_vocab_size, d_model)
     target_embed = Embeddings(target_vocab_size, d_model)
@@ -506,8 +536,18 @@ def make_transformer(
     src_pe = PositionalEncoding(d_model, src_seq_length, dropout_rate=dropout_rate)
     target_pe = PositionalEncoding(d_model, target_seq_length, dropout_rate=dropout_rate)
 
-    encoder = Encoder(d_model, num_layers, num_heads, d_ffn, dropout_rate=dropout_rate)
-    decoder = Decoder(d_model, num_layers, num_heads, d_ffn, dropout_rate=dropout_rate)
+    encoder = Encoder(d_model,
+                      num_layers,
+                      num_heads,
+                      d_ffn,
+                      dropout_rate=dropout_rate,
+                      attention_dropout_rate=attention_dropout_rate)
+    decoder = Decoder(d_model,
+                      num_layers,
+                      num_heads,
+                      d_ffn,
+                      dropout_rate=dropout_rate,
+                      attention_dropout_rate=attention_dropout_rate)
 
     projector = ProjectionLayer(d_model, target_vocab_size)
 
