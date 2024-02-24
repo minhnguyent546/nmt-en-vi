@@ -8,9 +8,9 @@ from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
 from dataset import BilingualDataset
-from config import get_config
 
 import utils.dataset_util as dataset_util
+from utils.config_util import get_config
 import constants as const
 
 from pathlib import Path
@@ -97,5 +97,5 @@ def preprocess(config: dict):
     torch.save(data_loaders, data_loaders_path)
 
 if __name__ == '__main__':
-    config = get_config()
+    config = get_config('./config/config.yaml')
     preprocess(config)

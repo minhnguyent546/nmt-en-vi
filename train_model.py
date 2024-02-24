@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
@@ -9,7 +8,7 @@ from tqdm import tqdm # progress bar helper
 
 from pathlib import Path
 
-from config import get_config
+from utils.config_util import get_config
 import utils.model_util as model_util
 import constants as const
 
@@ -150,5 +149,5 @@ def train_model(config):
         torch.save(checkpoint_dict, model_checkpoint_path)
 
 if __name__ == '__main__':
-    config = get_config()
+    config = get_config('./config/config.yaml')
     train_model(config)
