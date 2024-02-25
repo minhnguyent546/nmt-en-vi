@@ -2,3 +2,6 @@ __pycache__
 /checkpoints
 /runs
 /draft.py
+/.ipynb_checkpoints
+/figures/**/*.csv
+/figures/**/*.py
