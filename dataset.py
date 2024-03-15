@@ -45,7 +45,6 @@ class BilingualDataset(Dataset):
         src_text = self.dataset[index]['translation'][self.src_lang]
         target_text = self.dataset[index]['translation'][self.target_lang]
 
-
         encode_input_tokens = self.src_tokenizer.encode(src_text).ids
         decode_input_tokens = self.target_tokenizer.encode(target_text).ids
 
