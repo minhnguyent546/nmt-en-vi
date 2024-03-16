@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pandas as pd
+
 import torch
 from torch.utils.data import DataLoader
 
@@ -35,13 +37,16 @@ def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> To
 def preprocess(config: dict):
     dataset_dict: DatasetDict = load_dataset(
         path=config['dataset_path'],
-        name=config['dataset_name'],
+        name=config['dataset_subset'],
     )
     num_rows = dataset_dict.num_rows
 
-    # preprocessing
     print('Preprocessing sentences')
-    dataset_dict = dataset_util.preprocess_sentences(dataset_dict)
+    dataset_dict = dataset_util.process_dataset_sentences(dataset_dict,
+                                                          langs=[config['src_lang'], config['target_lang']],
+                                                          batched=True)
+
+    print(pd.DataFrame(dataset_dict['train']['translation'][:25]))
 
     print('Building tokenizers from train dataset')
     src_tokenizer = tokenize(dataset_dict['train'], config['src_lang'], config, min_freq=2)
@@ -52,7 +57,10 @@ def preprocess(config: dict):
     dataset_dict = dataset_util.remove_invalid_sentences(dataset_dict,
                                                          src_tokenizer,
                                                          target_tokenizer,
-                                                         config['seq_length'] - num_reserved_tokens)
+                                                         config['seq_length'] - num_reserved_tokens,
+                                                         config['src_lang'],
+                                                         config['target_lang'],
+                                                         batched=True)
     for dataset, num_row in dataset_dict.num_rows.items():
         if dataset in num_rows:
             print(f'Removed {num_rows[dataset] - num_row} sentences from {dataset}')

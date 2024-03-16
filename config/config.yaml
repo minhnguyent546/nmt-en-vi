@@ -27,7 +27,7 @@ beam_size: 5
 
 # dataset (hugging face)
 dataset_path: mt_eng_vietnamese
-dataset_name: iwslt2015-en-vi
+dataset_subset: iwslt2015-en-vi
 
 # training
 preload: null
