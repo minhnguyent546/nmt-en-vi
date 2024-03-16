@@ -1,11 +1,12 @@
+from pathlib import Path
+from sys import exit
+
 import torch
 
 from tokenizers import Tokenizer
 
-from pathlib import Path
-
-import utils.model_util as model_util
-from utils.config_util import get_config
+import utils.model as model_util
+import utils.config as config_util
 
 def test_model(config):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -52,5 +53,5 @@ def test_model(config):
     )
 
 if __name__ == '__main__':
-    config = get_config('./config/config.yaml')
+    config = config_util.get_config('./config/config.yaml')
     test_model(config)

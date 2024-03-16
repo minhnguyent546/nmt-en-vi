@@ -1,9 +1,9 @@
-from datasets import Dataset, DatasetDict
 from torch.utils.data import random_split
 
-from pyvi import ViTokenizer
-
+from datasets import Dataset, DatasetDict
 from tokenizers import Tokenizer
+
+from pyvi import ViTokenizer
 
 def create_iter_from_dataset(dataset, lang: str):
     for item in dataset:

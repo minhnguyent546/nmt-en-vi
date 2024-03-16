@@ -1,11 +1,10 @@
 import torch
-import torch.nn as nn
 from torch import Tensor
 from torch.utils.data import Dataset
 
 from tokenizers import Tokenizer
 
-import utils.model_util as model_util
+from transformer.utils.functional import create_mask
 import constants as const
 
 class BilingualDataset(Dataset):
@@ -75,7 +74,7 @@ class BilingualDataset(Dataset):
         assert label.size(0) == self.seq_length
 
         encoder_mask = (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() # (1, 1, seq_length)
-        tril_mask = model_util.create_mask(self.seq_length) # (1, seq_length, seq_length)
+        tril_mask = create_mask(self.seq_length) # (1, seq_length, seq_length)
         decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).int() & tril_mask # (1, seq_length, seq_length)
 
         return {

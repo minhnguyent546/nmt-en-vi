@@ -1,5 +1,4 @@
-import sys
-sys.path.append('../')
+from pathlib import Path
 
 import torch
 import torch.nn.functional as Fun
@@ -10,20 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
 
-from pathlib import Path
-
 from transformer import Transformer, make_transformer
-import utils.model_util as model_util
+from transformer.utils.functional import create_mask
 import constants as const
-
-def count_parameters(model) -> int:
-    return sum(
-        param.numel() for param in model.parameters() if param.requires_grad
-    )
-
-def create_mask(seq_length: int) -> Tensor:
-    tril_mask = torch.tril(torch.ones(1, seq_length, seq_length)).bool() # (1, seq_length, seq_length)
-    return tril_mask
 
 def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Transformer:
     model = make_transformer(
@@ -92,19 +80,19 @@ def greedy_search_decode(
     sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
     eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
 
-    encoder_output = model.encode(src, src_mask) # (batch_size, seq_length, d_model)
+    encoder_output = model.encode(src, src_mask)  # (batch_size, seq_length, d_model)
 
     # initialize decoder input that contains only <SOS> token
     decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
     for _ in range(seq_length):
         # create mask for decoder input
-        decoder_mask = model_util.create_mask(decoder_input.size(1)).type_as(src_mask).to(device)
+        decoder_mask = create_mask(decoder_input.size(1)).type_as(src_mask).to(device)
 
         # decode
         decoder_output = model.decode(encoder_output, decoder_input, src_mask, decoder_mask)
 
         # get token with highest probability
-        projected_output = model.project(decoder_output[:, -1, :])
+        projected_output = model.linear(decoder_output[:, -1, :])
         next_token = torch.argmax(projected_output, dim=1)
 
         # concatenate the next token to the decoder input for the next prediction
@@ -138,7 +126,7 @@ def beam_search_decode(
     sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
     eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
 
-    encoder_output = model.encode(src, src_mask) # (batch_size, seq_length, d_model)
+    encoder_output = model.encode(src, src_mask)  # (batch_size, seq_length, d_model)
 
     # initialize decoder input that contains only <SOS> token
     decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
@@ -155,7 +143,7 @@ def beam_search_decode(
                 continue
 
             # create mask for decoder input
-            cand_mask = model_util.create_mask(cand.size(1)).type_as(src_mask).to(device)
+            cand_mask = create_mask(cand.size(1)).type_as(src_mask).to(device)
 
             # decode
             output = model.decode(encoder_output, cand, src_mask, cand_mask)
@@ -164,7 +152,7 @@ def beam_search_decode(
             # projected_output: shape ``(1, target_vocab_size)``
             # topk_prob       : shape ``(1, beam_size)``
             # topk_token      : shape ``(1, beam_size)``
-            projected_output = model.project(output[:, -1, :])
+            projected_output = model.linear(output[:, -1, :])
             projected_output = Fun.log_softmax(projected_output, dim=-1) / length_penalty(cand.size(1) + 1)
             # get the top k largest tokens
             topk_token_prob, topk_token = torch.topk(projected_output, beam_size, dim=1)
@@ -215,8 +203,8 @@ def evaluate_model(
         # environment with no gradient calculation
         ignored_tokens = [const.UNK_TOKEN]
         for batch in data_loader:
-            encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
-            encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
+            encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
+            encoder_mask = batch['encoder_mask'].to(device)  # (batch_size, 1, 1, seq_length)
 
             batch_size = encoder_input.size(0)
             assert batch_size == 1, 'batch_size must be 1 for evaluation'

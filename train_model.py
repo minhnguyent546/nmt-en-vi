@@ -8,8 +8,8 @@ from tqdm import tqdm # progress bar helper
 
 from pathlib import Path
 
-from utils.config_util import get_config
-import utils.model_util as model_util
+import utils.model as model_util
+import utils.config as config_util
 import constants as const
 
 def train_model(config):
@@ -46,8 +46,8 @@ def train_model(config):
             optimizer,
             lr_lambda=lambda step_num: learning_rate
                                        * model_util.noam_decay_lr(step_num,
-                                                                  d_model=config['d_model'],
-                                                                  warmup_steps=config['warmup_steps'])
+                                                             d_model=config['d_model'],
+                                                             warmup_steps=config['warmup_steps'])
         )
 
     initial_epoch = 0
@@ -88,7 +88,7 @@ def train_model(config):
 
             encoder_output = model.encode(encoder_input, encoder_mask) # (batch_size, seq_length, d_model)
             decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask) # (batch_size, seq_length, d_model)
-            projected_output = model.project(decoder_output) # (batch_size, seq_length, target_vocab_size)
+            projected_output = model.linear(decoder_output) # (batch_size, seq_length, target_vocab_size)
             labels = batch['label'].to(device) # (batch_size, seq_length)
 
             # calculate the loss
@@ -149,5 +149,5 @@ def train_model(config):
         torch.save(checkpoint_dict, model_checkpoint_path)
 
 if __name__ == '__main__':
-    config = get_config('./config/config.yaml')
+    config = config_util.get_config('./config/config.yaml')
     train_model(config)

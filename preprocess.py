@@ -1,19 +1,19 @@
+from pathlib import Path
+
 import torch
 from torch.utils.data import DataLoader
 
-from datasets import load_dataset, Dataset
+from datasets import load_dataset, Dataset, DatasetDict
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
 from dataset import BilingualDataset
+import utils.dataset as dataset_util
+import utils.config as config_util
 
-import utils.dataset_util as dataset_util
-from utils.config_util import get_config
 import constants as const
-
-from pathlib import Path
 
 def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
@@ -33,7 +33,7 @@ def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> To
     return tokenizer
 
 def preprocess(config: dict):
-    dataset_dict = load_dataset(
+    dataset_dict: DatasetDict = load_dataset(
         path=config['dataset_path'],
         name=config['dataset_name'],
     )
@@ -97,5 +97,5 @@ def preprocess(config: dict):
     torch.save(data_loaders, data_loaders_path)
 
 if __name__ == '__main__':
-    config = get_config('./config/config.yaml')
+    config = config_util.get_config('./config/config.yaml')
     preprocess(config)
