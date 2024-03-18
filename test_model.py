@@ -1,12 +1,16 @@
 from pathlib import Path
-from sys import exit
+import sys
+import pandas as pd
 
 import torch
+import torch.nn as nn
 
 from tokenizers import Tokenizer
 
 import utils.model as model_util
 import utils.config as config_util
+import utils.bleu as bleu_util
+import constants as const
 
 def test_model(config):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -32,7 +36,7 @@ def test_model(config):
     model_latest_weights_path = model_util.get_latest_weights_file_path(config=config)
     if model_latest_weights_path is None:
         print('Aborted!')
-        exit(1)
+        sys.exit(1)
 
     print(f'Loaded latest weights from: {model_latest_weights_path}')
 
@@ -40,17 +44,24 @@ def test_model(config):
 
     model.load_state_dict(states['model_state_dict'])
 
-    model_util.evaluate_model(
-        model,
-        device,
-        test_data_loader,
-        src_tokenizer,
-        target_tokenizer,
-        config['seq_length'],
-        print,
-        beam_size=config['beam_size'],
-        num_samples=config['num_test_samples'],
-    )
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN),
+                                        label_smoothing=config['label_smoothing'])
+
+    test_stats = model_util.evaluate(model, device, loss_function, test_data_loader,
+                                     eval_max_steps=config['test_max_steps'])
+    test_bleu = bleu_util.compute_dataset_bleu(model, device, test_data_loader.dataset,
+                                              target_tokenizer, config['seq_length'],
+                                              teacher_forcing=False,
+                                              beam_size=config['beam_size'],
+                                              max_n=4, log_sentences=True,
+                                              logging_interval=10)
+    print(pd.DataFrame({
+        'test_loss': [test_stats['eval_loss']],
+        'val_bleu-1': [test_bleu[0]],
+        'val_bleu-2': [test_bleu[1]],
+        'val_bleu-3': [test_bleu[2]],
+        'val_bleu-4': [test_bleu[3]],
+    }).to_string(index=False))
 
 def main():
     config = config_util.get_config('./config/config.yaml')

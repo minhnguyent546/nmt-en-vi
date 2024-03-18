@@ -325,31 +325,31 @@ def train(
         'global_step': global_step,
     }
 
-def validate(
+def evaluate(
     model: Transformer,
     device: torch.device,
     loss_function,
-    val_data_loader: DataLoader,
-    val_max_steps: int | None = None,
+    eval_data_loader: DataLoader,
+    eval_max_steps: int | None = None,
 ) -> dict:
     """
     Args:
-        model (Transformer): model to be validated
+        model (Transformer): model to be evaluated
         device (device): device
         loss_function: loss function
-        val_data_loader (DataLoader): data loader for validation
-        val_max_step (int): maximum number of iterations for validation (default: None)
+        eval_data_loader (DataLoader): data loader for evaluation
+        eval_max_step (int): maximum number of iterations for evaluation (default: None)
 
     Returns:
-        validation stats (dict)
+        evaluation stats (dict)
     """
 
-    val_loss = 0.0
-    total_steps = len(val_data_loader)
-    if val_max_steps is not None:
-        total_steps = min(total_steps, val_max_steps)
+    eval_loss = 0.0
+    total_steps = len(eval_data_loader)
+    if eval_max_steps is not None:
+        total_steps = min(total_steps, eval_max_steps)
 
-    batch_iterator = tqdm(val_data_loader,
+    batch_iterator = tqdm(eval_data_loader,
                           desc='Evaluating',
                           total=total_steps)
 
@@ -376,10 +376,10 @@ def validate(
             # label: (batch_size * seq_length)
             target_vocab_size = logits.size(-1)
             loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
-            val_loss += loss.item()
+            eval_loss += loss.item()
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
     return {
-        'val_loss': val_loss / total_steps,
+        'eval_loss': eval_loss / total_steps,
     }

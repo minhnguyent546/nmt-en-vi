@@ -20,14 +20,17 @@ def compute_dataset_bleu(
     max_n: int = 4,
     log_sentences: bool = False,
     logging_interval: int = 20,
-    max_steps: int = 200,
+    max_steps: int | None = None,
 ) -> list[float]:
 
     src_tokens_list = []
     target_tokens_list = []
     pred_tokens_list = []
 
-    total_steps = min(max_steps, len(billingual_dataset))
+    total_steps = len(billingual_dataset)
+    if max_steps is not None:
+        total_steps = min(total_steps, max_steps)
+
     dataset_iterator = tqdm(billingual_dataset,
                             desc='Computing validation BLEU',
                             total=total_steps)

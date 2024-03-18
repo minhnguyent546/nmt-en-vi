@@ -78,15 +78,15 @@ def train_model(config):
         torch.cuda.empty_cache()
 
         train_stats = model_util.train(model, device, optimizer, loss_function,
-                                      train_data_loader, epoch, global_step,
-                                      config, train_max_steps=config['per_epoch_train_max_steps'],
-                                      writer=writer, lr_scheduler=lr_scheduler)
+                                       train_data_loader, epoch, global_step,
+                                       config, train_max_steps=config['per_epoch_train_max_steps'],
+                                       writer=writer, lr_scheduler=lr_scheduler)
 
-        val_stats = model_util.validate(model, device, loss_function,
-                                       validation_data_loader,
-                                       val_max_steps=config['val_max_steps'])
+        val_stats = model_util.evaluate(model, device, loss_function,
+                                        validation_data_loader,
+                                        eval_max_steps=config['val_max_steps'])
 
-        val_blue = bleu_util.compute_dataset_bleu(model, device, validation_data_loader.dataset,
+        val_bleu = bleu_util.compute_dataset_bleu(model, device, validation_data_loader.dataset,
                                                   target_tokenizer, config['seq_length'],
                                                   teacher_forcing=False,
                                                   beam_size=config['beam_size'],
@@ -98,7 +98,7 @@ def train_model(config):
             'val_loss': val_stats['val_loss'],
         }, epoch)
         writer.add_scalars('bleu/val_bleu', {
-            f'BLEU-{i + 1}': val_blue[i]
+            f'BLEU-{i + 1}': val_bleu[i]
             for i in range(4)
         }, epoch)
 
@@ -107,11 +107,11 @@ def train_model(config):
             'epoch': [epoch],
             'global_step': [train_stats['global_step']],
             'train_loss': [train_stats['train_loss']],
-            'val_loss': [val_stats['val_loss']],
-            'val_bleu-1': [val_blue[0]],
-            'val_bleu-2': [val_blue[1]],
-            'val_bleu-3': [val_blue[2]],
-            'val_bleu-4': [val_blue[3]],
+            'val_loss': [val_stats['eval_loss']],
+            'val_bleu-1': [val_bleu[0]],
+            'val_bleu-2': [val_bleu[1]],
+            'val_bleu-3': [val_bleu[2]],
+            'val_bleu-4': [val_bleu[3]],
         }).to_string(index=False))
 
         global_step = train_stats['global_step']

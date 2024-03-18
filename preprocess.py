@@ -97,7 +97,7 @@ def preprocess(config: dict):
 
     train_data_loader = DataLoader(train_dataset, batch_size=config['train_batch_size'], shuffle=True)
     validation_data_loader = DataLoader(validation_dataset, batch_size=config['eval_batch_size'])
-    test_data_loader = DataLoader(test_dataset)
+    test_data_loader = DataLoader(test_dataset, batch_size=config['eval_batch_size'])
 
     data_loaders = {
         'train': train_data_loader,
