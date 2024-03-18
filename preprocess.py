@@ -40,33 +40,38 @@ def preprocess(config: dict):
         name=config['dataset_subset'],
         cache_dir=config['dataset_cache_dir'],
     )
-    num_rows = dataset_dict.num_rows
+    raw_datasets = dataset_dict['train'].train_test_split(test_size=0.1, seed=config['seed'])
+    # rename the default "test" split to "validation"
+    raw_datasets['validation'] = raw_datasets.pop('test')
+    # add the test set for raw_datasets
+    raw_datasets['test'] = dataset_dict['test']
 
-    dataset_dict = dataset_util.process_dataset_sentences(dataset_dict,
+    num_rows = raw_datasets.num_rows
+    raw_datasets = dataset_util.process_dataset_sentences(raw_datasets,
                                                           langs=[config['src_lang'], config['target_lang']],
                                                           batched=True)
 
-    print(pd.DataFrame(dataset_dict['train']['translation'][:25]))
+    print(pd.DataFrame(raw_datasets['train']['translation'][:25]))
 
     print('Building tokenizers from train dataset')
-    src_tokenizer = tokenize(dataset_dict['train'], config['src_lang'], config, min_freq=2)
-    target_tokenizer = tokenize(dataset_dict['train'], config['target_lang'], config, min_freq=2)
+    src_tokenizer = tokenize(raw_datasets['train'], config['src_lang'], config, min_freq=2)
+    target_tokenizer = tokenize(raw_datasets['train'], config['target_lang'], config, min_freq=2)
 
     print('Removing invalid sentences')
     num_reserved_tokens = 5
-    dataset_dict = dataset_util.remove_invalid_sentences(dataset_dict,
+    raw_datasets = dataset_util.remove_invalid_sentences(raw_datasets,
                                                          src_tokenizer,
                                                          target_tokenizer,
                                                          config['seq_length'] - num_reserved_tokens,
                                                          config['src_lang'],
                                                          config['target_lang'],
                                                          batched=True)
-    for dataset, num_row in dataset_dict.num_rows.items():
+    for dataset, num_row in raw_datasets.num_rows.items():
         if dataset in num_rows:
             print(f'Removed {num_rows[dataset] - num_row} sentences from {dataset}')
 
     train_dataset = BilingualDataset(
-        dataset_dict['train'],
+        raw_datasets['train'],
         src_tokenizer,
         target_tokenizer,
         config['src_lang'],
@@ -74,7 +79,7 @@ def preprocess(config: dict):
         config['seq_length']
     )
     validation_dataset = BilingualDataset(
-        dataset_dict['validation'],
+        raw_datasets['validation'],
         src_tokenizer,
         target_tokenizer,
         config['src_lang'],
@@ -82,7 +87,7 @@ def preprocess(config: dict):
         config['seq_length']
     )
     test_dataset = BilingualDataset(
-        dataset_dict['test'],
+        raw_datasets['test'],
         src_tokenizer,
         target_tokenizer,
         config['src_lang'],

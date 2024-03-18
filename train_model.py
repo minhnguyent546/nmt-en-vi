@@ -130,7 +130,7 @@ def train_model(config):
         torch.save(checkpoint_dict, model_checkpoint_path)
 
 def main():
-    config = config_util.get_config('./config/config-local.yaml')
+    config = config_util.get_config('./config/config.yaml')
     train_model(config)
 
 
