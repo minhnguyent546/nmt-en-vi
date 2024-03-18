@@ -1,8 +1,9 @@
 __pycache__
 /checkpoints
 /runs
-/draft.py
+/draft.*
 /.ipynb_checkpoints
 /figures/**/*.csv
 /figures/**/*.py
 /config/config-local.yaml
+/datasets

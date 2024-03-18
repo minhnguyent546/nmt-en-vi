@@ -11,7 +11,7 @@ from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
-from dataset import BilingualDataset
+from billingual_dataset import BilingualDataset
 import utils.dataset as dataset_util
 import utils.config as config_util
 
@@ -38,10 +38,10 @@ def preprocess(config: dict):
     dataset_dict: DatasetDict = load_dataset(
         path=config['dataset_path'],
         name=config['dataset_subset'],
+        cache_dir=config['dataset_cache_dir'],
     )
     num_rows = dataset_dict.num_rows
 
-    print('Preprocessing sentences')
     dataset_dict = dataset_util.process_dataset_sentences(dataset_dict,
                                                           langs=[config['src_lang'], config['target_lang']],
                                                           batched=True)
@@ -90,9 +90,9 @@ def preprocess(config: dict):
         config['seq_length']
     )
 
-    train_data_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True)
-    validation_data_loader = DataLoader(validation_dataset, batch_size=1, shuffle=True)
-    test_data_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
+    train_data_loader = DataLoader(train_dataset, batch_size=config['train_batch_size'], shuffle=True)
+    validation_data_loader = DataLoader(validation_dataset, batch_size=config['eval_batch_size'])
+    test_data_loader = DataLoader(test_dataset)
 
     data_loaders = {
         'train': train_data_loader,
@@ -104,6 +104,9 @@ def preprocess(config: dict):
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     torch.save(data_loaders, data_loaders_path)
 
-if __name__ == '__main__':
+def main():
     config = config_util.get_config('./config/config.yaml')
     preprocess(config)
+
+if __name__ == '__main__':
+    main()

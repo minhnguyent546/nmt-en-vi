@@ -84,7 +84,9 @@ def scaled_dot_product(
         values (Tensor): attention tensor, shape ``(batch_size, num_heads, q_length, d_v)``
         attention_probs (Tensor): softmax score, shape ``(batch_size, num_heads, q_length, k_length)``
     """
+
     d_k = q.size(-1)
+    # attention_probs: (batch_size, num_heads, q_length, k_length)
     attention_probs = (q @ k.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         attention_probs.masked_fill_(mask == False, -1e9)

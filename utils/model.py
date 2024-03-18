@@ -1,16 +1,17 @@
 from pathlib import Path
+from tqdm import tqdm
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as Fun
-from torchtext.data.metrics import bleu_score
-from torch import Tensor, device
+from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
 
 from transformer import Transformer, make_transformer
-from transformer.utils.functional import create_mask
+from transformer.utils.functional import create_causal_mask
 import constants as const
 
 def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Transformer:
@@ -52,53 +53,90 @@ def noam_decay_lr(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
     step_num = max(step_num, 1)
     return d_model ** (-0.5) * min(step_num ** (-0.5), step_num * warmup_steps ** (-1.5))
 
-def cal_bleu_score(
-    candidate_corpus,
-    references_corpus,
-    max_n: int | list[int] = 4,
-    weights=[0.25] * 4
-) -> float | list[float]:
-    if isinstance(max_n, int):
-        return bleu_score(candidate_corpus, references_corpus, max_n=max_n, weights=weights)
+def decode_with_teacher_forcing(
+    model: Transformer,
+    device: torch.device,
+    encoder_input: Tensor,
+    decoder_input: Tensor,
+    encoder_mask: Tensor,
+    decoder_mask: Tensor,
+    has_batch_dim: bool = False,
+) -> Tensor:
+    """
+    Args:
+        model (Transformer): model to be used for decoding
+        device (torch.device): device
+        encoder_input (Tensor): encoder input
+        decoder_input (Tensor): decoder input
+        encoder_mask (Tensor): mask tensor for encoder input
+        decoder_mask (Tensor): mask tensor for decoder input
+        has_batch_dim (bool): whether input tensors have batch dimension (default: False)
 
-    scores = []
-    for n_gram in max_n:
-        cur_score = bleu_score(candidate_corpus, references_corpus, max_n=n_gram, weights=[1 / n_gram] * n_gram)
-        scores.append(cur_score)
+    Returns:
+        Tensor: tensor of predicted token ids
+    """
+    encoder_input = encoder_input.to(device)
+    decoder_input = decoder_input.to(device)
+    encoder_mask = encoder_mask.to(device)
+    decoder_mask = decoder_mask.to(device)
 
-    return scores
+    if not has_batch_dim:
+        encoder_input.unsqueeze_(0)
+        decoder_input.unsqueeze_(0)
+
+    encoder_output = model.encode(encoder_input, encoder_mask)  # (batch_size, seq_length, d_model)
+    decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask)  # (batch_size, seq_length, d_model)
+    logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+
+    pred_token_ids = logits.argmax(dim=-1)  # (batch_size, seq_length)
+
+    return pred_token_ids
 
 def greedy_search_decode(
     model: Transformer,
-    device: device,
-    src: Tensor,
-    src_mask: Tensor,
+    device: torch.device,
+    encoder_input: Tensor,
+    encoder_mask: Tensor,
     target_tokenizer: Tokenizer,
-    seq_length: int
+    seq_length: int,
 ) -> Tensor:
-    # assume batch_size is 1
+    """
+    Args:
+        model (Transformer): model to be used for decoding
+        device (torch.device): device
+        encoder_input (Tensor): encoder input
+        encoder_mask (Tensor): mask tensor for encoder input
+        target_tokenizer (Tokenizer): target tokenizer
+        seq_lenght (int): maximum sequence length
+
+    Returns:
+        Tensor: tensor of predicted token ids
+    """
+
     sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
     eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
 
-    encoder_output = model.encode(src, src_mask)  # (batch_size, seq_length, d_model)
+    encoder_input = encoder_input.unsqueeze(0).to(device)
+    encoder_mask = encoder_mask.unsqueeze(0).to(device)
+    encoder_output = model.encode(encoder_input, encoder_mask)
 
-    # initialize decoder input that contains only <SOS> token
-    decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
+    # initialize decoder input which contains only <SOS> token
+    decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(encoder_input).to(device)
     for _ in range(seq_length):
         # create mask for decoder input
-        decoder_mask = create_mask(decoder_input.size(1)).type_as(src_mask).to(device)
+        decoder_mask = create_causal_mask(decoder_input.size(1)).type_as(encoder_mask).to(device)
 
         # decode
-        decoder_output = model.decode(encoder_output, decoder_input, src_mask, decoder_mask)
+        decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask)
 
         # get token with highest probability
-        projected_output = model.linear(decoder_output[:, -1, :])
-        next_token = torch.argmax(projected_output, dim=1)
+        logits = model.linear(decoder_output[:, -1, :])  # (1, target_vocab_size)
+        next_token = logits.argmax(dim=-1)
 
         # concatenate the next token to the decoder input for the next prediction
         decoder_input = torch.cat([
             decoder_input,
-            torch.empty((1, 1)).type_as(src).fill_(next_token.item()).to(device)
+            torch.empty((1, 1)).fill_(next_token.item()).type_as(encoder_input).to(device)
         ], dim=1)
 
         # if we reach the <EOS> token, then stop
@@ -115,23 +153,38 @@ def length_penalty(length: int, alpha: float = 0.6) -> float:
 
 def beam_search_decode(
     model: Transformer,
-    device: device,
+    device: torch.device,
     beam_size: int,
-    src: Tensor,
-    src_mask: Tensor,
+    encoder_input: Tensor,
+    encoder_mask: Tensor,
     target_tokenizer: Tokenizer,
     seq_length: int,
 ) -> Tensor:
-    # assume batch_size is 1
+    """
+    Args:
+        model (Transformer): model to be used for decoding
+        device (torch.device): device
+        beam_size (int): beam size
+        encoder_input (Tensor): encoder input
+        encoder_mask (Tensor): mask tensor for encoder input
+        target_tokenizer (Tokenizer): target tokenizer
+        seq_lenght (int): maximum sequence length
+
+    Returns:
+        Tensor: tensor of predicted token ids
+    """
+
     sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
     eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
 
-    encoder_output = model.encode(src, src_mask)  # (batch_size, seq_length, d_model)
+    encoder_input = encoder_input.unsqueeze(0).to(device)
+    encoder_mask = encoder_mask.unsqueeze(0).to(device)
+    encoder_output = model.encode(encoder_input, encoder_mask)
 
-    # initialize decoder input that contains only <SOS> token
-    decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(src).to(device)
+    # initialize decoder input which contains only <SOS> token
+    decoder_input = torch.empty((1, 1)).fill_(sos_token_id).type_as(encoder_input).to(device)
 
-    # candidate list of tuple (decoder_input, log_score)
+    # candidate list of tuples (decoder_input, log_score)
     cands = [(decoder_input, 0.0)]
     for _ in range(seq_length):
         new_cands = []
@@ -143,19 +196,20 @@ def beam_search_decode(
                 continue
 
             # create mask for decoder input
-            cand_mask = create_mask(cand.size(1)).type_as(src_mask).to(device)
+            cand_mask = create_causal_mask(cand.size(1)).type_as(encoder_mask).to(device)
 
             # decode
-            output = model.decode(encoder_output, cand, src_mask, cand_mask)
+            decoder_output = model.decode(encoder_output, cand, encoder_mask, cand_mask)
 
             # get next token probabilities
-            # projected_output: shape ``(1, target_vocab_size)``
+            # logits: shape ``(1, target_vocab_size)``
             # topk_prob       : shape ``(1, beam_size)``
             # topk_token      : shape ``(1, beam_size)``
-            projected_output = model.linear(output[:, -1, :])
-            projected_output = Fun.log_softmax(projected_output, dim=-1) / length_penalty(cand.size(1) + 1)
+            logits = model.linear(decoder_output[:, -1, :])
+
+            output = Fun.log_softmax(logits, dim=-1) / length_penalty(cand.size(1) + 1)
             # get the top k largest tokens
-            topk_token_prob, topk_token = torch.topk(projected_output, beam_size, dim=1)
+            topk_token_prob, topk_token = torch.topk(output, beam_size, dim=1)
             for j in range(beam_size):
                 # token: shape ``(1, 1)``
                 # token_prob: scalar
@@ -177,85 +231,155 @@ def beam_search_decode(
 
     return cands[0][0].squeeze(0)
 
-def evaluate_model(
+def train(
     model: Transformer,
-    device: device,
-    data_loader: DataLoader,
-    src_tokenizer: Tokenizer,
-    target_tokenizer: Tokenizer,
-    seq_length: int,
-    print_message,
-    beam_size: int | None = None,
-    epoch: int | None = None,
+    device: torch.device,
+    optimizer,
+    loss_function,
+    train_data_loader: DataLoader,
+    epoch: int,
+    global_step: int,
+    config: dict,
+    train_max_steps: int | None = None,
     writer: SummaryWriter | None = None,
-    num_samples: int = -1,
-) -> None:
-    model.eval()
-    counter = 0
+    lr_scheduler = None,
+) -> dict:
+    """
+    Args:
+        model (Transformer): model to be trained
+        device (device): device
+        optimizer: optimizer
+        loss_function: loss function
+        train_data_loader (DataLoader): data loader for training
+        epoch (int): current epoch
+        global_step (int): start from this global step
+        config (dict): dictionary of configurations
+        train_max_steps (int): maximum number of iterations for training (default: None)
+        writer (SummaryWriter): tensorboard writer (default: None)
+        lr_scheduler: learning rate scheduler (default: None)
 
-    src_texts = []
-    target_texts = []
-    predicted_texts = []
-    if num_samples == -1:
-        num_samples = len(data_loader)
+    Returns:
+        train stats (dict)
+    """
+
+    num_epochs = config['num_epochs']
+    total_steps = len(train_data_loader)
+    if train_max_steps is not None:
+        total_steps = min(total_steps, train_max_steps)
+
+    batch_iterator = tqdm(train_data_loader,
+                          desc=f'Processing epoch {epoch + 1:02d}/{num_epochs:02d}',
+                          total=total_steps)
+    train_loss = 0.0
+
+    # set model in training mode
+    model.train()
+
+    for batch_idx, batch in enumerate(batch_iterator):
+        if batch_idx >= total_steps:
+            break
+
+        encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
+        decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
+        encoder_mask = batch['encoder_mask'].to(device)  # (batch_size, 1, 1, seq_length)
+        decoder_mask = batch['decoder_mask'].to(device)  # (batch_size, 1, seq_length, seq_length)
+
+        encoder_output = model.encode(encoder_input, encoder_mask)  # (batch_size, seq_length, d_model)
+        decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask)  # (batch_size, seq_length, d_model)
+        logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+        labels = batch['labels'].to(device)  # (batch_size, seq_length)
+
+        # calculate the loss
+        # logits: (batch_size * seq_length, target_vocab_size)
+        # label: (batch_size * seq_length)
+        target_vocab_size = logits.size(-1)
+        loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
+
+        # backpropagate the loss
+        loss.backward()
+
+        if config['max_grad_norm'] > 0:
+            # clipping the gradient
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_grad_norm'])
+
+        # update weights and learning rate
+        optimizer.step()
+        optimizer.zero_grad()
+        if lr_scheduler is not None:
+            if writer is not None:
+                for group_id, group_lr in enumerate(lr_scheduler.get_last_lr()):
+                    writer.add_scalar(f'learning_rate/group-{group_id}', group_lr, global_step)
+            lr_scheduler.step()
+
+        train_loss += loss.item()
+        batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
+
+        if writer is not None:
+            writer.add_scalar('loss/train_batch_loss', loss.item(), global_step)
+            writer.flush()
+
+        global_step += 1
+
+    return {
+        'train_loss': train_loss / total_steps,
+        'global_step': global_step,
+    }
+
+def validate(
+    model: Transformer,
+    device: torch.device,
+    loss_function,
+    val_data_loader: DataLoader,
+    val_max_steps: int | None = None,
+) -> dict:
+    """
+    Args:
+        model (Transformer): model to be validated
+        device (device): device
+        loss_function: loss function
+        val_data_loader (DataLoader): data loader for validation
+        val_max_step (int): maximum number of iterations for validation (default: None)
+
+    Returns:
+        validation stats (dict)
+    """
+
+    val_loss = 0.0
+    total_steps = len(val_data_loader)
+    if val_max_steps is not None:
+        total_steps = min(total_steps, val_max_steps)
+
+    batch_iterator = tqdm(val_data_loader,
+                          desc='Evaluating',
+                          total=total_steps)
+
+    # set model in validation mode
+    model.eval()
 
     with torch.no_grad():
-        # environment with no gradient calculation
-        ignored_tokens = [const.UNK_TOKEN]
-        for batch in data_loader:
-            encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
-            encoder_mask = batch['encoder_mask'].to(device)  # (batch_size, 1, 1, seq_length)
-
-            batch_size = encoder_input.size(0)
-            assert batch_size == 1, 'batch_size must be 1 for evaluation'
-
-            if beam_size is not None:
-                model_output = beam_search_decode(model, device, beam_size, encoder_input,
-                                                  encoder_mask, target_tokenizer, seq_length)
-            else:
-                model_output = greedy_search_decode(model, device, encoder_input,
-                                                    encoder_mask, target_tokenizer, seq_length)
-
-            src_text = batch['src_text'][0]
-            target_text = batch['target_text'][0]
-            predicted_text = target_tokenizer.decode(model_output.detach().cpu().numpy())
-
-            src_text_tokens = [token for token in src_tokenizer.encode(src_text).tokens if token not in ignored_tokens]
-            target_text_tokens = [token for token in target_tokenizer.encode(target_text).tokens if token not in ignored_tokens]
-            predicted_text_tokens = [token for token in target_tokenizer.encode(predicted_text).tokens if token not in ignored_tokens]
-
-            src_texts.append(src_text_tokens)
-            target_texts.append([target_text_tokens])
-            predicted_texts.append(predicted_text_tokens)
-
-            batch_bleu_scores = cal_bleu_score([predicted_text_tokens], [[target_text_tokens]], max_n=[1, 2, 3, 4])
-
-            print_message('-'*80)
-            print_message(f'[{counter + 1}/{num_samples}] source    : {src_text}')
-            print_message(f'[{counter + 1}/{num_samples}] target    : {target_text}')
-            print_message(f'[{counter + 1}/{num_samples}] predicted : {predicted_text}')
-            print_message(f'[{counter + 1}/{num_samples}] BLEU-1    : {batch_bleu_scores[0]:0.3f}')
-            print_message(f'[{counter + 1}/{num_samples}] BLEU-2    : {batch_bleu_scores[1]:0.3f}')
-            print_message(f'[{counter + 1}/{num_samples}] BLEU-3    : {batch_bleu_scores[2]:0.3f}')
-            print_message(f'[{counter + 1}/{num_samples}] BLEU-4    : {batch_bleu_scores[3]:0.3f}')
-
-            counter += 1
-            if counter == num_samples:
+        for batch_idx, batch in enumerate(batch_iterator):
+            if batch_idx >= total_steps:
                 break
 
-    eval_bleu_scores = cal_bleu_score(predicted_texts, target_texts, max_n=[1, 2, 3, 4])
+            encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
+            decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
+            encoder_mask = batch['encoder_mask'].to(device)  # (batch_size, 1, 1, seq_length)
+            decoder_mask = batch['decoder_mask'].to(device)  # (batch_size, 1, seq_length, seq_length)
+            labels = batch['labels'].to(device)  # (batch_size, seq_length)
 
-    print_message(f'Evaluation BLEU-1: {eval_bleu_scores[0]:0.3f}')
-    print_message(f'Evaluation BLEU-2: {eval_bleu_scores[1]:0.3f}')
-    print_message(f'Evaluation BLEU-3: {eval_bleu_scores[2]:0.3f}')
-    print_message(f'Evaluation BLEU-4: {eval_bleu_scores[3]:0.3f}')
+            encoder_output = model.encode(encoder_input, encoder_mask)  # (batch_size, seq_length, d_model)
+            decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask)  # (batch_size, seq_length, d_model)
+            logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
 
-    if writer is not None:
-        assert epoch is not None, 'epoch must be provided when writer is not None'
-        writer.add_scalars('eval_BLEU', {
-            'BLEU-1': eval_bleu_scores[0],
-            'BLEU-2': eval_bleu_scores[1],
-            'BLEU-3': eval_bleu_scores[2],
-            'BLEU-4': eval_bleu_scores[3],
-        }, global_step=epoch)
-        writer.flush()
+            # calculating the loss
+            # logits: (batch_size * seq_length, target_vocab_size)
+            # label: (batch_size * seq_length)
+            target_vocab_size = logits.size(-1)
+            loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
+            val_loss += loss.item()
+
+            batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
+
+    return {
+        'val_loss': val_loss / total_steps,
+    }

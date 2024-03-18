@@ -38,6 +38,14 @@ class Transformer(nn.Module):
         self.last_linear = last_linear
 
     def encode(self, src: Tensor, src_mask: Tensor):
+        """
+        Args:
+            src (Tensor): source tensor, shape ``(batch_size, seq_length)``
+            src_mask (Tensor): mask tensor for source, shape ``TODO``
+
+        Returns:
+            Tensor: the output tensor, shape ``(batch_size, seq_length, d_model)``
+        """
         src = self.src_embed(src)
         src = self.src_pe(src)
         src = self.encoder(src, src_mask=src_mask)
@@ -50,12 +58,22 @@ class Transformer(nn.Module):
         src_mask: Tensor,
         target_mask: Tensor
     ) -> Tensor:
+        """
+        Args:
+            src (Tensor): encoder output, shape ``(batch_size, src_seq_length, d_model)``
+            target (Tensor): target tensor, shape ``(batch_size, target_seq_length)``
+            src_mask (Tensor): mask tensor for ``src``, shape ``TODO``
+            target_mask (Tensor): mask tensor for ``target``, shape ``TODO``
+
+        Returns:
+            Tensor: the output tensor, shape ``(batch_size, seq_length, d_model)``
+        """
         target = self.target_embed(target)
         target = self.target_pe(target)
         target = self.decoder(src, target, src_mask, target_mask)
         return target
 
-    def linear(self, x):
+    def linear(self, x: Tensor) -> Tensor:
         return self.last_linear(x)
 
 def make_transformer(

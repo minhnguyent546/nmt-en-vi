@@ -1,15 +1,15 @@
+from pathlib import Path
+import pandas as pd
+
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
 
-from tqdm import tqdm # progress bar helper
-
-from pathlib import Path
-
 import utils.model as model_util
 import utils.config as config_util
+import utils.bleu as bleu_util
 import constants as const
 
 def train_model(config):
@@ -45,9 +45,11 @@ def train_model(config):
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
             lr_lambda=lambda step_num: learning_rate
-                                       * model_util.noam_decay_lr(step_num,
-                                                             d_model=config['d_model'],
-                                                             warmup_steps=config['warmup_steps'])
+                                       * model_util.noam_decay_lr(
+                                            step_num,
+                                            d_model=config['d_model'],
+                                            warmup_steps=config['warmup_steps']
+                                        )
         )
 
     initial_epoch = 0
@@ -75,65 +77,44 @@ def train_model(config):
         # clear cuda cache
         torch.cuda.empty_cache()
 
-        model.train()
+        train_stats = model_util.train(model, device, optimizer, loss_function,
+                                      train_data_loader, epoch, global_step,
+                                      config, train_max_steps=config['per_epoch_train_max_steps'],
+                                      writer=writer, lr_scheduler=lr_scheduler)
 
-        epoch_loss = 0.0
-        batch_iterator = tqdm(train_data_loader, desc=f'Processing epoch {epoch + 1:02d}/{num_epochs:02d}')
-        batch_message_printer = lambda message: batch_iterator.write(message)
-        for batch in batch_iterator:
-            encoder_input = batch['encoder_input'].to(device) # (batch_size, seq_length)
-            decoder_input = batch['decoder_input'].to(device) # (batch_size, seq_length)
-            encoder_mask = batch['encoder_mask'].to(device) # (batch_size, 1, 1, seq_length)
-            decoder_mask = batch['decoder_mask'].to(device) # (batch_size, 1, seq_length, seq_length)
+        val_stats = model_util.validate(model, device, loss_function,
+                                       validation_data_loader,
+                                       val_max_steps=config['val_max_steps'])
 
-            encoder_output = model.encode(encoder_input, encoder_mask) # (batch_size, seq_length, d_model)
-            decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask) # (batch_size, seq_length, d_model)
-            projected_output = model.linear(decoder_output) # (batch_size, seq_length, target_vocab_size)
-            labels = batch['label'].to(device) # (batch_size, seq_length)
+        val_blue = bleu_util.compute_dataset_bleu(model, device, validation_data_loader.dataset,
+                                                  target_tokenizer, config['seq_length'],
+                                                  teacher_forcing=False,
+                                                  beam_size=config['beam_size'],
+                                                  max_n=4, log_sentences=True,
+                                                  logging_interval=20, max_steps=200)
 
-            # calculate the loss
-            # projected_output: (batch_size * seq_length, target_vocab_size)
-            # label: (batch_size * seq_length)
-            loss = loss_function(projected_output.view(-1, target_tokenizer.get_vocab_size()), labels.view(-1))
+        writer.add_scalars('loss', {
+            'train_loss': train_stats['train_loss'],
+            'val_loss': val_stats['val_loss'],
+        }, epoch)
+        writer.add_scalars('bleu/val_bleu', {
+            f'BLEU-{i + 1}': val_blue[i]
+            for i in range(4)
+        }, epoch)
 
-            batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
-            # log the loss
-            writer.add_scalar('loss/batch_loss', loss.item(), global_step)
-            writer.flush()
+        # write epoch information to the screen
+        print(pd.DataFrame({
+            'epoch': [epoch],
+            'global_step': [train_stats['global_step']],
+            'train_loss': [train_stats['train_loss']],
+            'val_loss': [val_stats['val_loss']],
+            'val_bleu-1': [val_blue[0]],
+            'val_bleu-2': [val_blue[1]],
+            'val_bleu-3': [val_blue[2]],
+            'val_bleu-4': [val_blue[3]],
+        }).to_string(index=False))
 
-            # backpropagate the loss
-            loss.backward()
-
-            if config['max_grad_norm'] > 0:
-                # clipping the gradient
-                nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_grad_norm'])
-
-            # update weights and learning rate
-            optimizer.step()
-            optimizer.zero_grad()
-            if lr_scheduler is not None:
-                for i, _lr in enumerate(lr_scheduler.get_last_lr()):
-                    writer.add_scalar(f'learning_rate/group-{i}', _lr, global_step)
-                lr_scheduler.step()
-
-            epoch_loss += loss.item()
-            global_step += 1
-
-        model_util.evaluate_model(
-            model,
-            device,
-            validation_data_loader,
-            src_tokenizer,
-            target_tokenizer,
-            config['seq_length'],
-            batch_message_printer,
-            beam_size=config['beam_size'],
-            epoch=epoch,
-            writer=writer,
-            num_samples=config['num_validation_samples'],
-        )
-        writer.add_scalar('loss/epoch_loss', epoch_loss / len(batch_iterator), epoch)
-        writer.flush()
+        global_step = train_stats['global_step']
 
         # save the model after every epoch
         model_checkpoint_path = model_util.get_weights_file_path(f'{epoch:02d}', config)
@@ -148,6 +129,10 @@ def train_model(config):
 
         torch.save(checkpoint_dict, model_checkpoint_path)
 
-if __name__ == '__main__':
-    config = config_util.get_config('./config/config.yaml')
+def main():
+    config = config_util.get_config('./config/config-local.yaml')
     train_model(config)
+
+
+if __name__ == '__main__':
+    main()

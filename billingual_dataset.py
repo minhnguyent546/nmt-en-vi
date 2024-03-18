@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 
 from tokenizers import Tokenizer
 
-from transformer.utils.functional import create_mask
+from transformer.utils.functional import create_causal_mask
 import constants as const
 
 class BilingualDataset(Dataset):
@@ -47,35 +47,35 @@ class BilingualDataset(Dataset):
         encode_input_tokens = self.src_tokenizer.encode(src_text).ids
         decode_input_tokens = self.target_tokenizer.encode(target_text).ids
 
-        encode_num_paddings = self.seq_length - len(encode_input_tokens) - 2 # exclude <SOS> & <EOS>
-        decode_num_paddings = self.seq_length - len(decode_input_tokens) - 1 # exclude <SOS> | <EOS>
+        encode_num_paddings = self.seq_length - len(encode_input_tokens) - 2  # exclude <SOS> & <EOS>
+        decode_num_paddings = self.seq_length - len(decode_input_tokens) - 1  # exclude <SOS> | <EOS>
 
         assert encode_num_paddings >= 0, "The length of the source text is too long"
         assert decode_num_paddings >= 0, "The length of the target text is too long"
 
         encoder_input = torch.cat([
             self.sos_token,
-            Tensor(encode_input_tokens).to(torch.int64),
+            Tensor(encode_input_tokens).type(torch.int64),
             self.eos_token,
-            self.pad_token.repeat(encode_num_paddings).to(torch.int64),
+            self.pad_token.repeat(encode_num_paddings)
         ])
         decoder_input = torch.cat([
             self.sos_token,
-            Tensor(decode_input_tokens).to(torch.int64),
-            self.pad_token.repeat(decode_num_paddings).to(torch.int64),
+            Tensor(decode_input_tokens).type(torch.int64),
+            self.pad_token.repeat(decode_num_paddings)
         ])
-        label = torch.cat([
-            Tensor(decode_input_tokens).to(torch.int64),
+        labels = torch.cat([
+            Tensor(decode_input_tokens).type(torch.int64),
             self.eos_token,
-            self.pad_token.repeat(decode_num_paddings).to(torch.int64),
+            self.pad_token.repeat(decode_num_paddings)
         ])
         assert encoder_input.size(0) == self.seq_length
         assert decoder_input.size(0) == self.seq_length
-        assert label.size(0) == self.seq_length
+        assert labels.size(0) == self.seq_length
 
-        encoder_mask = (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() # (1, 1, seq_length)
-        tril_mask = create_mask(self.seq_length) # (1, seq_length, seq_length)
-        decoder_mask = (decoder_input != self.pad_token).unsqueeze(0).int() & tril_mask # (1, seq_length, seq_length)
+        encoder_mask = (encoder_input != self.pad_token).unsqueeze(0).unsqueeze(0)  # (1, 1, seq_length)
+        causal_mask = create_causal_mask(self.seq_length).unsqueeze(0)
+        decoder_mask = (decoder_input != self.pad_token) & causal_mask  # (1, seq_length, seq_length)
 
         return {
             'src_text': src_text,
@@ -84,6 +84,5 @@ class BilingualDataset(Dataset):
             'decoder_input': decoder_input,
             'encoder_mask': encoder_mask,
             'decoder_mask': decoder_mask,
-            'label': label,
-
+            'labels': labels,
         }

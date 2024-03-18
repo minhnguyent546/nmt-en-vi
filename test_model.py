@@ -52,6 +52,9 @@ def test_model(config):
         num_samples=config['num_test_samples'],
     )
 
-if __name__ == '__main__':
-    config = config_util.get_config('./config/config.yaml')
+def main():
+    config = config_util.get_config('./config/config-local.yaml')
     test_model(config)
+
+if __name__ == '__main__':
+    main()
