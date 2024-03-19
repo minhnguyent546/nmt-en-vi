@@ -36,7 +36,7 @@ class MultiHeadAttention(nn.Module):
             query (Tensor): query tensor, shape ``(batch_size, q_length, d_model)``
             key (Tensor): key tensor, shape ``(batch_size, k_length d_model)``
             value (Tensor): value tensor, shape ``(batch_size, v_length, d_model)``
-            mask (Tensor | None): mask for decoder
+            mask (Tensor): mask tensor, shape ``(batch_size, 1, 1, k_length)`` (default: None)
 
         Returns:
             x (Tensor): shape ``(batch_size, q_length, d_model)``
@@ -78,8 +78,8 @@ def scaled_dot_product(
         query (Tensor): query tensor, shape ``(batch_size, num_heads, q_length, d_k)``
         key (Tensor): key tensor, shape ``(batch_size, num_heads, k_length, d_k)``
         value (Tensor): value tensor, shape ``(batch_size, num_heads, v_length, d_v)``
-        mask (Tensor | None): mask for decoder
-
+        mask (Tensor): mask tensor, shape ``(batch_size, 1, 1, k_length)`` (default: None)
+        dropout (nn.Dropout): dropout layer (default: None)
     Returns:
         values (Tensor): attention tensor, shape ``(batch_size, num_heads, q_length, d_v)``
         attention_probs (Tensor): softmax score, shape ``(batch_size, num_heads, q_length, k_length)``

@@ -37,7 +37,7 @@ class EncoderLayer(nn.Module):
         """
         Args:
             inputs (Tensor): positionally embedded inputs tensor, shape ``(batch_size, seq_length, d_model)``
-            src_mask (Tensor | None): mask tensor, shape ``(batch_size, seq_length, seq_length)``
+            src_mask (Tensor): mask tensor, shape ``(batch_size, 1, 1, seq_length)`` (default: None)
 
         Returns:
             output (Tensor): sequences after a single self-attention layer, shape ``(batch_size, seq_length, d_model)``
@@ -77,10 +77,10 @@ class Encoder(nn.Module):
         """
         Args:
             inputs (Tensor): positionally embedded inputs tensor, shape ``(batch_size, seq_length, d_model)``
-            src_mask (Tensor): mask tensor, shape ``(batch_size, sequence_length, sequence_length)``
+            src_mask (Tensor): mask tensor, shape ``(batch_size, 1, 1, seq_length)`` (default: None)
 
         Returns:
-            output (Tensor): sequences after self-attention ``(batch_size, sequence_length, d_model)``
+            output (Tensor): sequences after self-attention ``(batch_size, seq_length, d_model)``
         """
         for layer in self.layers:
             inputs = layer(inputs, src_mask=src_mask)

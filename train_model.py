@@ -54,20 +54,28 @@ def train_model(config):
 
     initial_epoch = 0
     global_step = 0
-    _preload = config['preload']
-    if _preload is not None:
-        model_filename = model_util.get_weights_file_path(epoch=f'{_preload:0>2}', config=config)
-        print(f'Loading weights from epoch {_preload:0>2}')
-        states = torch.load(model_filename)
+    preload = config['preload']
+    if preload is not None:
+        model_filename = None
+        if preload == 'latest':
+            model_filename = model_util.get_latest_weights_file_path(config=config)
+        else:
+            model_filename = model_util.get_weights_file_path(f'{preload:0>2}', config=config)
 
-        # continue from previous completed epoch
-        initial_epoch = states['epoch'] + 1
-        
-        model.load_state_dict(states['model_state_dict'])
-        optimizer.load_state_dict(states['optimizer_state_dict'])
-        if lr_scheduler is not None and 'lr_scheduler_state_dict' in states:
-            lr_scheduler.load_state_dict(states['lr_scheduler_state_dict'])
-        global_step = states['global_step']
+        if model_filename is None:
+            print('No model weights found to preload')
+        else:
+            print(f'Loading weights from previous epoch: {preload:0>2}')
+            states = torch.load(model_filename)
+
+            # continue from previous completed epoch
+            initial_epoch = states['epoch'] + 1
+
+            model.load_state_dict(states['model_state_dict'])
+            optimizer.load_state_dict(states['optimizer_state_dict'])
+            if lr_scheduler is not None and 'lr_scheduler_state_dict' in states:
+                lr_scheduler.load_state_dict(states['lr_scheduler_state_dict'])
+            global_step = states['global_step']
 
     loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN),
                                         label_smoothing=config['label_smoothing'])

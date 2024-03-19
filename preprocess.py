@@ -49,6 +49,7 @@ def preprocess(config: dict):
     num_rows = raw_datasets.num_rows
     raw_datasets = dataset_util.process_dataset_sentences(raw_datasets,
                                                           langs=[config['src_lang'], config['target_lang']],
+                                                          vi_config=config,
                                                           batched=True)
 
     print(pd.DataFrame(raw_datasets['train']['translation'][:25]))

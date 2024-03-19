@@ -30,9 +30,10 @@ beam_size: 5
 dataset_path: mt_eng_vietnamese
 dataset_subset: iwslt2015-en-vi
 dataset_cache_dir: datasets
+vi_word_segmentation: True
 
 # training
-preload: null
+preload: latest
 train_batch_size: 32
 eval_batch_size: 32
 num_epochs: 10

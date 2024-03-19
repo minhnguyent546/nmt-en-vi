@@ -28,10 +28,11 @@ def _process_en_sentence(sentence: str) -> str:
     sentence = contractions.fix(sentence)
     return sentence
 
-def _process_vi_sentence(sentence: str) -> str:
+def _process_vi_sentence(sentence: str, vi_config: dict) -> str:
     sentence = sentence.strip().lower()
     sentence = html.unescape(sentence)
-    sentence = underthesea.word_tokenize(sentence, format='text')
+    if 'vi_word_segmentation' in vi_config and vi_config['vi_word_segmentation']:
+        sentence = underthesea.word_tokenize(sentence, format='text')
     return sentence
 
 def _process_en_sentences(examples):
@@ -48,27 +49,28 @@ def _process_en_sentences(examples):
             'translation': {k: v if k != 'en' else _process_en_sentence(v) for k, v in examples['translation'].items()}
         }
 
-def _process_vi_sentences(examples):
+def _process_vi_sentences(examples, vi_config: dict):
     if isinstance(examples['translation'], list):
         # when batched=True
         return {
             'translation': [
-                {k: v if k != 'vi' else _process_vi_sentence(v) for k, v in item.items()}
+                {k: v if k != 'vi' else _process_vi_sentence(v, vi_config) for k, v in item.items()}
                 for item in examples['translation']
             ]
         }
     else:
         return {
-            'translation': {k: v if k != 'vi' else _process_vi_sentence(v) for k, v in examples['translation'].items()}
+            'translation': {k: v if k != 'vi' else _process_vi_sentence(v, vi_config) for k, v in examples['translation'].items()}
         }
 
 def _process_sentences_by_lang(
     dataset: Dataset | DatasetDict,
     lang: str,
+    vi_config: dict,
     **kwargs,
 ) -> Dataset | DatasetDict:
     if lang == 'vi':
-        return dataset.map(_process_vi_sentences, **kwargs)
+        return dataset.map(lambda item: _process_vi_sentences(item, vi_config), **kwargs)
     elif lang == 'en':
         return dataset.map(_process_en_sentences, **kwargs)
     else:
@@ -77,6 +79,7 @@ def _process_sentences_by_lang(
 def process_dataset_sentences(
     dataset: Dataset | DatasetDict,
     langs: str | list[str],
+    vi_config: dict = {},
     **kwargs,
 ) -> Dataset | DatasetDict:
     if isinstance(langs, str):
@@ -84,7 +87,7 @@ def process_dataset_sentences(
 
     for lang in langs:
         print(f'Processing {lang} sentences')
-        dataset = _process_sentences_by_lang(dataset, lang, **kwargs)
+        dataset = _process_sentences_by_lang(dataset, lang, vi_config, **kwargs)
 
     return dataset
 

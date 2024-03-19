@@ -43,7 +43,6 @@ def get_latest_weights_file_path(config: dict) -> str | None:
         latest_file = sorted(saved_files)[-1]
         return str(latest_file)
 
-    print(f'No model weights found at {model_dir}')
     return None
 
 def noam_decay_lr(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
