@@ -34,6 +34,9 @@ def compute_dataset_bleu(
     dataset_iterator = tqdm(billingual_dataset,
                             desc='Computing validation BLEU',
                             total=total_steps)
+    cand_list = None
+    cand_text_list = None
+
     # set model in evaluation mode
     model.eval()
 
@@ -57,14 +60,21 @@ def compute_dataset_bleu(
                 pred_token_ids = pred_token_ids[0]
             elif beam_size is not None and beam_size > 1:
                 # decoding with beam search
-                pred_token_ids = model_util.beam_search_decode(model, device, beam_size, encoder_input,
+                cand_list = model_util.beam_search_decode(model, device, beam_size, encoder_input,
                                                                encoder_mask, target_tokenizer, seq_length)
+                pred_token_ids = cand_list[0]
             else:
                 # decoding with greedy search
                 pred_token_ids = model_util.greedy_search_decode(model, device, encoder_input,
                                                                  encoder_mask, target_tokenizer, seq_length)
 
             pred_text = target_tokenizer.decode(pred_token_ids.detach().cpu().numpy())
+            if cand_list is not None:
+                cand_text_list = [
+                    target_tokenizer.decode(cand.detach().cpu().numpy())
+                    for cand in cand_list
+                ]
+
             pred_tokens = target_tokenizer.encode(pred_text).tokens
             src_tokens = target_tokenizer.encode(src_text).tokens
             target_tokens = target_tokenizer.encode(target_text).tokens
@@ -84,7 +94,11 @@ def compute_dataset_bleu(
 
                 dataset_iterator.write(f'Source: {src_text}')
                 dataset_iterator.write(f'Target: {target_text}')
-                dataset_iterator.write(f'Predicted: {pred_text}')
+                if cand_text_list is not None:
+                    for cand_text_idx, cand_text in enumerate(cand_text_list):
+                        dataset_iterator.write(f'Predicted-{cand_text_idx + 1}: {cand_text}')
+                else:
+                    dataset_iterator.write(f'Predicted: {pred_text}')
                 for n_gram in range(1, max_n + 1):
                     dataset_iterator.write(f'BLEU-{n_gram}: {bleu_scores[n_gram - 1]:0.3f}')
 

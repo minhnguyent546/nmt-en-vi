@@ -159,7 +159,7 @@ def beam_search_decode(
     encoder_mask: Tensor,
     target_tokenizer: Tokenizer,
     seq_length: int,
-) -> Tensor:
+) -> list[Tensor]:
     """
     Args:
         model (Transformer): model to be used for decoding
@@ -171,7 +171,7 @@ def beam_search_decode(
         seq_lenght (int): maximum sequence length
 
     Returns:
-        Tensor: tensor of predicted token ids
+        list[Tensor]: list of candidate tensors of predicted token ids
     """
 
     sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
@@ -229,7 +229,9 @@ def beam_search_decode(
         if all([cand[0][-1].item() == eos_token_id for cand, _ in cands]):
             break
 
-    return cands[0][0].squeeze(0)
+    assert len(cands) == beam_size
+    result_cands = [cand[0].squeeze(0) for cand in cands]
+    return result_cands
 
 def train(
     model: Transformer,

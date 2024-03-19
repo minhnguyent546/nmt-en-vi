@@ -95,7 +95,7 @@ def train_model(config):
 
         writer.add_scalars('loss', {
             'train_loss': train_stats['train_loss'],
-            'val_loss': val_stats['val_loss'],
+            'val_loss': val_stats['eval_loss'],
         }, epoch)
         writer.add_scalars('bleu/val_bleu', {
             f'BLEU-{i + 1}': val_bleu[i]
