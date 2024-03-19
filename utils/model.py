@@ -14,12 +14,22 @@ from transformer import Transformer, make_transformer
 from transformer.utils.functional import create_causal_mask
 import constants as const
 
-def make_model(src_vocab_size: int, target_vocab_size: int, config: dict) -> Transformer:
+def make_model(
+    src_tokenizer: Tokenizer,
+    target_tokenizer: Tokenizer,
+    config: dict
+) -> Transformer:
+    src_vocab_size = src_tokenizer.get_vocab_size()
+    target_vocab_size = target_tokenizer.get_vocab_size()
+    src_pad_token_id = src_tokenizer.token_to_id(const.PAD_TOKEN)
+    target_pad_token_id = target_tokenizer.token_to_id(const.PAD_TOKEN)
     model = make_transformer(
         src_vocab_size,
         target_vocab_size,
         config['seq_length'],
         config['seq_length'],
+        src_pad_token_id,
+        target_pad_token_id,
         d_model=config['d_model'],
         num_heads=config['num_heads'],
         num_layers=config['num_layers'],
@@ -282,11 +292,8 @@ def train(
 
         encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
         decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
-        encoder_mask = batch['encoder_mask'].to(device)  # (batch_size, 1, 1, seq_length)
-        decoder_mask = batch['decoder_mask'].to(device)  # (batch_size, 1, seq_length, seq_length)
 
-        encoder_output = model.encode(encoder_input, encoder_mask)  # (batch_size, seq_length, d_model)
-        decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask)  # (batch_size, seq_length, d_model)
+        decoder_output = model.decode(encoder_input, decoder_input, src_is_encoded=False)  # (batch_size, seq_length, d_model)
         logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
         labels = batch['labels'].to(device)  # (batch_size, seq_length)
 
@@ -364,12 +371,9 @@ def evaluate(
 
             encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
             decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
-            encoder_mask = batch['encoder_mask'].to(device)  # (batch_size, 1, 1, seq_length)
-            decoder_mask = batch['decoder_mask'].to(device)  # (batch_size, 1, seq_length, seq_length)
             labels = batch['labels'].to(device)  # (batch_size, seq_length)
 
-            encoder_output = model.encode(encoder_input, encoder_mask)  # (batch_size, seq_length, d_model)
-            decoder_output = model.decode(encoder_output, decoder_input, encoder_mask, decoder_mask)  # (batch_size, seq_length, d_model)
+            decoder_output = model.decode(encoder_input, decoder_input, src_is_encoded=False)  # (batch_size, seq_length, d_model)
             logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
 
             # calculating the loss

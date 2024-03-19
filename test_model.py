@@ -28,8 +28,7 @@ def test_model(config):
     src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['src_lang'])))
     target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target_lang'])))
 
-    src_vocab_size, target_vocab_size = src_tokenizer.get_vocab_size(), target_tokenizer.get_vocab_size()
-    model = model_util.make_model(src_vocab_size, target_vocab_size, config)
+    model = model_util.make_model(src_tokenizer, target_tokenizer, config)
     model.to(device)
 
     print('Loading latest model weights')

@@ -2,6 +2,7 @@ import html
 import re
 
 from torch.utils.data import random_split
+from torch.nn.utils.rnn import pad_sequence
 
 from datasets import Dataset, DatasetDict
 from tokenizers import Tokenizer
@@ -20,6 +21,17 @@ def split_dataset(dataset, split_rate: float = 0.9):
 
     train_dataset, validation_dataset = random_split(dataset, [train_dataset_size, validation_dataset_size])
     return train_dataset, validation_dataset
+
+def collate_fun(original_batch):
+    all_keys = original_batch[0].keys()
+    added_keys = ['encoder_input', 'decoder_input', 'labels']
+    remain_keys = [key for key in all_keys if key not in added_keys]
+
+    groups = {key: [item[key] for item in original_batch] for key in added_keys}
+    batch = {key: [item[key] for item in original_batch] for key in remain_keys}
+    groups = {key: pad_sequence(group, batch_first=True) for key, group in groups.items()}
+    batch.update(groups)
+    return batch
 
 def _process_en_sentence(sentence: str) -> str:
     sentence = sentence.strip().lower()

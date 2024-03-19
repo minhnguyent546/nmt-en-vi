@@ -1,5 +1,4 @@
 from pathlib import Path
-
 import pandas as pd
 
 import torch
@@ -59,7 +58,7 @@ def preprocess(config: dict):
     target_tokenizer = tokenize(raw_datasets['train'], config['target_lang'], config, min_freq=2)
 
     print('Removing invalid sentences')
-    num_reserved_tokens = 5
+    num_reserved_tokens = 2  # for SOS and EOS tokens
     raw_datasets = dataset_util.remove_invalid_sentences(raw_datasets,
                                                          src_tokenizer,
                                                          target_tokenizer,
@@ -96,10 +95,12 @@ def preprocess(config: dict):
         config['seq_length']
     )
 
-    train_data_loader = DataLoader(train_dataset, batch_size=config['train_batch_size'], shuffle=True)
-    validation_data_loader = DataLoader(validation_dataset, batch_size=config['eval_batch_size'])
-    test_data_loader = DataLoader(test_dataset, batch_size=config['eval_batch_size'])
-
+    train_data_loader = DataLoader(train_dataset, batch_size=config['train_batch_size'],
+                                   shuffle=True, collate_fn=dataset_util.collate_fun)
+    validation_data_loader = DataLoader(validation_dataset, batch_size=config['eval_batch_size'],
+                                        collate_fn=dataset_util.collate_fun)
+    test_data_loader = DataLoader(test_dataset, batch_size=config['eval_batch_size'],
+                                  collate_fn=dataset_util.collate_fun)
     data_loaders = {
         'train': train_data_loader,
         'validation': validation_data_loader,
