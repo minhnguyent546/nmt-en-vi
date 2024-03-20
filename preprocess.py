@@ -95,12 +95,18 @@ def preprocess(config: dict):
         config['seq_length']
     )
 
+    assert src_tokenizer.token_to_id(const.PAD_TOKEN) == target_tokenizer.token_to_id(const.PAD_TOKEN)
+    pad_token_id = src_tokenizer.token_to_id(const.PAD_TOKEN)
+    data_collator = dataset_util.CollatorWithPadding(
+        pad_token_id,
+        added_features=['encoder_input', 'decoder_input', 'labels']
+    )
     train_data_loader = DataLoader(train_dataset, batch_size=config['train_batch_size'],
-                                   shuffle=True, collate_fn=dataset_util.collate_fun)
+                                   shuffle=True, collate_fn=data_collator)
     validation_data_loader = DataLoader(validation_dataset, batch_size=config['eval_batch_size'],
-                                        collate_fn=dataset_util.collate_fun)
+                                        collate_fn=data_collator)
     test_data_loader = DataLoader(test_dataset, batch_size=config['eval_batch_size'],
-                                  collate_fn=dataset_util.collate_fun)
+                                  collate_fn=data_collator)
     data_loaders = {
         'train': train_data_loader,
         'validation': validation_data_loader,
