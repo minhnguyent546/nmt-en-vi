@@ -1,9 +1,10 @@
 datasets==2.17.1
+contractions==0.1.73
 matplotlib==3.8.2
 pandas==1.5.3
-pyvi==0.1.1
 PyYAML==6.0.1
 tokenizers==0.15.2
 torch==2.2.0
 torchtext==0.17.1+15e55dd
 tqdm==4.66.2
+underthesea==6.8.0
