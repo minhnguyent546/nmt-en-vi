@@ -46,27 +46,25 @@ def compute_dataset_bleu(
                 break
 
             encoder_input = data['encoder_input']
-            encoder_mask = data['encoder_mask']
             src_text = data['src_text']
             target_text = data['target_text']
 
             if teacher_forcing:
                 # decoding with teacher forcing
                 decoder_input = data['decoder_input']
-                decoder_mask = data['decoder_mask']
 
-                pred_token_ids = model_util.decode_with_teacher_forcing(model, device, encoder_input, decoder_input,
-                                                                        encoder_mask, decoder_mask, has_batch_dim=False)
+                pred_token_ids = model_util.decode_with_teacher_forcing(model, device, encoder_input,
+                                                                        decoder_input, has_batch_dim=False)
                 pred_token_ids = pred_token_ids[0]
             elif beam_size is not None and beam_size > 1:
                 # decoding with beam search
                 cand_list = model_util.beam_search_decode(model, device, beam_size, encoder_input,
-                                                               encoder_mask, target_tokenizer, seq_length)
+                                                          target_tokenizer, seq_length)
                 pred_token_ids = cand_list[0]
             else:
                 # decoding with greedy search
                 pred_token_ids = model_util.greedy_search_decode(model, device, encoder_input,
-                                                                 encoder_mask, target_tokenizer, seq_length)
+                                                                 target_tokenizer, seq_length)
 
             pred_text = target_tokenizer.decode(pred_token_ids.detach().cpu().numpy())
             if cand_list is not None:

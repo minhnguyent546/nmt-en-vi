@@ -64,31 +64,53 @@ class Transformer(nn.Module):
         self,
         src: Tensor,
         target: Tensor,
-        src_mask: Tensor | None = None,
+        src_mask: Tensor,
         target_mask: Tensor | None = None,
-        src_is_encoded: bool = True,
     ) -> Tensor:
         """
         Args:
             src (Tensor): encoder output, shape ``(batch_size, src_seq_length, d_model)``
             target (Tensor): target tensor, shape ``(batch_size, target_seq_length)``
-            src_mask (Tensor): mask tensor for ``src``, shape ``(batch_size, 1, 1, src_seq_length)`` (default: None)
+            src_mask (Tensor): mask tensor for ``src``, shape ``(batch_size, 1, 1, src_seq_length)``
             target_mask (Tensor): mask tensor for ``target``, shape ``(batch_size, 1, target_seq_length, target_seq_length)`` (default: None)
-            src_is_encoded (bool): whether src is passed through encoder or not (default: True)
 
         Returns:
             Tensor: the output tensor, shape ``(batch_size, seq_length, d_model)``
         """
 
         if target_mask is None:
-            fun.create_decoder_mask(target, self.target_pad_token_id, has_batch_dim=True)
+            target_mask = fun.create_decoder_mask(target, self.target_pad_token_id, has_batch_dim=True)
         target = self.target_embed(target)
         target = self.target_pe(target)
 
-        if not src_is_encoded:
-            src = self.encode(src, src_mask)
-
+        assert src.dim() == 3
         target = self.decoder(src, target, src_mask, target_mask)
+        return target
+
+    def forward(
+        self,
+        src: Tensor,
+        target: Tensor,
+        src_mask: Tensor | None = None,
+        target_mask: Tensor | None = None,
+    ) -> Tensor:
+        """
+        Args:
+            src (Tensor): source tensor, shape ``(batch_size, src_seq_length)``
+            target (Tensor): target tensor, shape ``(batch_size, target_seq_length)``
+            src_mask (Tensor): mask tensor for ``src``, shape ``(batch_size, 1, 1, src_seq_length)`` (default: None)
+            target_mask (Tensor): mask tensor for ``target``, shape ``(batch_size, 1, target_seq_length, target_seq_length)`` (default: None)
+
+        Returns:
+            Tensor: the output tensor, shape ``(batch_size, seq_length, d_model)``
+        """
+        assert src.dim() == 2
+        assert target.dim() == 2
+
+        if src_mask is None:
+            src_mask = fun.create_encoder_mask(src, self.src_pad_token_id, has_batch_dim=True)
+        src = self.encode(src, src_mask=src_mask)
+        target = self.decode(src, target, src_mask=src_mask, target_mask=target_mask)
         return target
 
     def linear(self, x: Tensor) -> Tensor:
