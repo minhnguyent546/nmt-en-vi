@@ -180,6 +180,7 @@ def beam_search_decode(
     encoder_input: Tensor,
     target_tokenizer: Tokenizer,
     seq_length: int,
+    return_topk: int = 1,
 ) -> list[Tensor]:
     """
     Args:
@@ -189,6 +190,7 @@ def beam_search_decode(
         encoder_input (Tensor): encoder input
         target_tokenizer (Tokenizer): target tokenizer
         seq_length (int): maximum sequence length
+        return_topk (int): return top k best candidates (default: 1)
 
     Returns:
         list[Tensor]: list of candidate tensors of predicted token ids
@@ -251,6 +253,7 @@ def beam_search_decode(
             break
 
     assert len(cands) == beam_size
+    cands = cands[:return_topk]
     result_cands = [cand[0].squeeze(0) for cand in cands]
     return result_cands
 

@@ -97,6 +97,7 @@ def train_model(config):
                                                   target_tokenizer, config['seq_length'],
                                                   teacher_forcing=False,
                                                   beam_size=config['beam_size'],
+                                                  beam_return_topk=config['beam_return_topk'],
                                                   max_n=4, log_sentences=True,
                                                   logging_interval=20, max_steps=200)
 

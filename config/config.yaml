@@ -42,4 +42,5 @@ num_epochs: 10
 per_epoch_train_max_steps: null
 val_max_steps: null
 test_max_steps: null
-seq_length: 120
+seq_length: 128
+beam_return_topk: 3

@@ -17,6 +17,7 @@ def compute_dataset_bleu(
     seq_length: int,
     teacher_forcing: bool = True,
     beam_size: int | None = None,
+    beam_return_topk: int = 1,
     max_n: int = 4,
     log_sentences: bool = False,
     logging_interval: int = 20,
@@ -59,7 +60,7 @@ def compute_dataset_bleu(
             elif beam_size is not None and beam_size > 1:
                 # decoding with beam search
                 cand_list = model_util.beam_search_decode(model, device, beam_size, encoder_input,
-                                                          target_tokenizer, seq_length)
+                                                          target_tokenizer, seq_length, return_topk=beam_return_topk)
                 pred_token_ids = cand_list[0]
             else:
                 # decoding with greedy search
