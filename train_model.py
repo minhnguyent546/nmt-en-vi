@@ -65,7 +65,7 @@ def train_model(config):
             print('No model weights found to preload')
         else:
             print(f'Loading weights from previous epoch: {preload:0>2}')
-            states = torch.load(model_filename)
+            states = torch.load(model_filename, map_location=device)
 
             # continue from previous completed epoch
             initial_epoch = states['epoch'] + 1
@@ -111,7 +111,7 @@ def train_model(config):
 
         # write epoch information to the screen
         print(pd.DataFrame({
-            'epoch': [epoch],
+            'epoch': [epoch + 1],
             'global_step': [train_stats['global_step']],
             'train_loss': [train_stats['train_loss']],
             'val_loss': [val_stats['eval_loss']],
