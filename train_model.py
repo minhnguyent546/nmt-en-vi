@@ -38,13 +38,13 @@ def train_model(config):
 
     # optimizer and lr scheduler
     learning_rate = config['learning_rate']
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = model_util.make_optimizer(model, config)
     lr_scheduler = None
     if config['enable_lr_scheduler']:
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
             lr_lambda=lambda step_num: learning_rate
-                                       * model_util.noam_decay_lr(
+                                       * model_util.noam_decay(
                                             step_num,
                                             d_model=config['d_model'],
                                             warmup_steps=config['warmup_steps']

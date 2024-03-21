@@ -3,6 +3,7 @@ from tqdm import tqdm
 
 import torch
 import torch.nn as nn
+from torch import optim
 import torch.nn.functional as Fun
 from torch import Tensor
 from torch.utils.data import DataLoader
@@ -39,6 +40,25 @@ def make_model(
     )
     return model
 
+def make_optimizer(model: Transformer, config: dict) -> optim.Optimizer:
+    optim_type = config['optim']
+    if optim_type == 'adam':
+        optimizer = optim.Adam(
+            model.parameters(),
+            lr=config['learning_rate'],
+            weight_decay=config['weight_decay']
+        )
+    elif optim_type == 'adamw':
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=config['learning_rate'],
+            weight_decay=config['weight_decay']
+        )
+    else:
+        raise ValueError('Invalid optimizer option: ' + optim_type)
+
+    return optimizer
+
 def get_weights_file_path(epoch: str, config: dict) -> str:
     model_dir = Path(config['checkpoints_dir']) / config['model_dir']
     model_basename = config['model_basename']
@@ -55,7 +75,7 @@ def get_latest_weights_file_path(config: dict) -> str | None:
 
     return None
 
-def noam_decay_lr(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
+def noam_decay(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
     """
     As described in https://arxiv.org/pdf/1706.03762.pdf
     """

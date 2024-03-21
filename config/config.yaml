@@ -19,6 +19,8 @@ dropout_rate: 0.1
 attention_dropout_rate: 0.1
 
 # optimization
+optim: adam
+weight_decay: 1.0e-3
 learning_rate: 1.0 # change lr to small value (e.g. 1e-4) if lr scheduler is disabled
 enable_lr_scheduler: True
 warmup_steps: 4000
