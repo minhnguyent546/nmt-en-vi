@@ -82,6 +82,16 @@ def noam_decay(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
     step_num = max(step_num, 1)
     return d_model ** (-0.5) * min(step_num ** (-0.5), step_num * warmup_steps ** (-1.5))
 
+def compute_accuracy(pred: Tensor, labels: Tensor, pad_token_id: int | None = None) -> float:
+    num_el = labels.numel()
+    matches = (pred == labels)
+    if pad_token_id is not None:
+        num_el = (labels != pad_token_id).sum().item()
+        matches = matches & (labels != pad_token_id)
+
+    acc = matches.sum().item() / num_el
+    return acc
+
 def decode_with_teacher_forcing(
     model: Transformer,
     device: torch.device,
@@ -337,7 +347,7 @@ def train(
             lr_scheduler.step()
 
         train_loss += loss.item()
-        train_acc += (pred == labels).sum().item()
+        train_acc += compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
         batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
         if writer is not None:
@@ -404,7 +414,7 @@ def evaluate(
             target_vocab_size = logits.size(-1)
             loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
             eval_loss += loss.item()
-            eval_acc += (pred == labels).sum().item()
+            eval_acc = compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
