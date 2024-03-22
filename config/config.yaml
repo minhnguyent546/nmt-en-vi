@@ -36,7 +36,7 @@ val_size: 0.025 # a rate for creating custom validation set from train set
 vi_word_segmentation: True
 
 # training
-preload: latest
+preload: latest # 'latest' or epoch number
 train_batch_size: 32
 eval_batch_size: 32
 num_epochs: 10
@@ -45,3 +45,6 @@ val_max_steps: null
 test_max_steps: null
 seq_length: 128
 beam_return_topk: 3
+
+# testing
+test_checkpoint: latest # 'latest' or epoch number

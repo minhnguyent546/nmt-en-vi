@@ -31,15 +31,21 @@ def test_model(config):
     model = model_util.make_model(src_tokenizer, target_tokenizer, config)
     model.to(device)
 
-    print('Loading latest model weights')
-    model_latest_weights_path = model_util.get_latest_weights_file_path(config=config)
-    if model_latest_weights_path is None:
-        print('Aborted!')
+    test_checkpoint = config['test_checkpoint']
+    model_weights_path = None
+    if test_checkpoint == 'latest':
+        model_weights_path = model_util.get_latest_weights_file_path(config=config)
+    else:
+        model_weights_path = model_util.get_weights_file_path(f'{test_checkpoint:0>2}', config)
+
+    if model_weights_path is None:
+        print('No model weights found to load')
+        print('Aborted')
         sys.exit(1)
 
-    print(f'Loaded latest weights from: {model_latest_weights_path}')
+    print(f'Loading weights from checkpoint: {test_checkpoint}')
 
-    states = torch.load(model_latest_weights_path)
+    states = torch.load(model_weights_path, map_location=device)
 
     model.load_state_dict(states['model_state_dict'])
 
