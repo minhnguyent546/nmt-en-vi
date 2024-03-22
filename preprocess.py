@@ -39,6 +39,10 @@ def preprocess(config: dict):
         name=config['dataset_subset'],
         cache_dir=config['dataset_cache_dir'],
     )
+    max_train_set_size = config['max_train_set_size']
+    if max_train_set_size is not None and max_train_set_size < len(dataset_dict['train']):
+        dataset_dict['train'] = dataset_dict['train'].shuffle(config['seed']).select(range(max_train_set_size))
+
     raw_datasets = dataset_dict['train'].train_test_split(test_size=config['val_size'], seed=config['seed'])
     # rename the default "test" split to "validation"
     raw_datasets['validation'] = raw_datasets.pop('test')

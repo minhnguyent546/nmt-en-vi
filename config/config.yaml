@@ -34,6 +34,7 @@ dataset_subset: iwslt2015-en-vi
 dataset_cache_dir: datasets
 val_size: 0.025 # a rate for creating custom validation set from train set
 vi_word_segmentation: True
+max_train_set_size: 500_000
 
 # training
 preload: latest # 'latest' or epoch number
