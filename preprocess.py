@@ -39,7 +39,7 @@ def preprocess(config: dict):
         name=config['dataset_subset'],
         cache_dir=config['dataset_cache_dir'],
     )
-    raw_datasets = dataset_dict['train'].train_test_split(test_size=0.1, seed=config['seed'])
+    raw_datasets = dataset_dict['train'].train_test_split(test_size=config['val_size'], seed=config['seed'])
     # rename the default "test" split to "validation"
     raw_datasets['validation'] = raw_datasets.pop('test')
     # add the test set for raw_datasets

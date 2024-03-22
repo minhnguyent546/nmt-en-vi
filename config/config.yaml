@@ -32,6 +32,7 @@ beam_size: 5
 dataset_path: mt_eng_vietnamese
 dataset_subset: iwslt2015-en-vi
 dataset_cache_dir: datasets
+val_size: 0.025 # a rate for creating custom validation set from train set
 vi_word_segmentation: True
 
 # training
