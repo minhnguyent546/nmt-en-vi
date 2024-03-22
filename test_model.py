@@ -57,6 +57,7 @@ def test_model(config):
                                               logging_interval=10)
     print(pd.DataFrame({
         'test_loss': [test_stats['eval_loss']],
+        'test_accuracy': [test_stats['eval_accuracy']],
         'val_bleu-1': [test_bleu[0]],
         'val_bleu-2': [test_bleu[1]],
         'val_bleu-3': [test_bleu[2]],

@@ -297,6 +297,7 @@ def train(
                           desc=f'Processing epoch {epoch + 1:02d}/{num_epochs:02d}',
                           total=total_steps)
     train_loss = 0.0
+    train_acc = 0.0
 
     # set model in training mode
     model.train()
@@ -310,6 +311,7 @@ def train(
 
         decoder_output = model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
         logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+        pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
         labels = batch['labels'].to(device)  # (batch_size, seq_length)
 
         # calculate the loss
@@ -335,6 +337,7 @@ def train(
             lr_scheduler.step()
 
         train_loss += loss.item()
+        train_acc += (pred == labels).sum().item()
         batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
         if writer is not None:
@@ -345,6 +348,7 @@ def train(
 
     return {
         'train_loss': train_loss / total_steps,
+        'train_accuracy': train_acc / total_steps,
         'global_step': global_step,
     }
 
@@ -367,7 +371,6 @@ def evaluate(
         evaluation stats (dict)
     """
 
-    eval_loss = 0.0
     total_steps = len(eval_data_loader)
     if eval_max_steps is not None:
         total_steps = min(total_steps, eval_max_steps)
@@ -375,6 +378,9 @@ def evaluate(
     batch_iterator = tqdm(eval_data_loader,
                           desc='Evaluating',
                           total=total_steps)
+
+    eval_loss = 0.0
+    eval_acc = 0.0
 
     # set model in validation mode
     model.eval()
@@ -390,6 +396,7 @@ def evaluate(
 
             decoder_output = model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
             logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+            pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
 
             # calculating the loss
             # logits: (batch_size * seq_length, target_vocab_size)
@@ -397,9 +404,11 @@ def evaluate(
             target_vocab_size = logits.size(-1)
             loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
             eval_loss += loss.item()
+            eval_acc += (pred == labels).sum().item()
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
     return {
         'eval_loss': eval_loss / total_steps,
+        'eval_accuracy': eval_acc / total_steps,
     }

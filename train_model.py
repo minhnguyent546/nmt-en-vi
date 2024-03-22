@@ -105,6 +105,10 @@ def train_model(config):
             'train_loss': train_stats['train_loss'],
             'val_loss': val_stats['eval_loss'],
         }, epoch)
+        writer.add_scalars('accuracy', {
+            'train_accuracy': train_stats['train_accuracy'],
+            'val_accuracy': val_stats['eval_accuracy'],
+        }, epoch)
         writer.add_scalars('bleu/val_bleu', {
             f'BLEU-{i + 1}': val_bleu[i]
             for i in range(4)
@@ -116,6 +120,8 @@ def train_model(config):
             'global_step': [train_stats['global_step']],
             'train_loss': [train_stats['train_loss']],
             'val_loss': [val_stats['eval_loss']],
+            'train_accuracy': [train_stats['train_accuracy']],
+            'val_accuracy': [val_stats['eval_accuracy']],
             'val_bleu-1': [val_bleu[0]],
             'val_bleu-2': [val_bleu[1]],
             'val_bleu-3': [val_bleu[2]],
