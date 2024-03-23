@@ -414,7 +414,7 @@ def evaluate(
             target_vocab_size = logits.size(-1)
             loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
             eval_loss += loss.item()
-            eval_acc = compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
+            eval_acc += compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
