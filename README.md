@@ -1,25 +1,22 @@
 # Machine translation (en-vi) using Transformer model
 
-## Setup
+## Setup for NMT from english to vietnamse task
 
-- Clone this repo:
+- Preprocessing data:
 ```bash
-git clone https://github.com/minhnguyent546/transformer-mt-en-vi.git
-cd transformer-mt-en-vi
+python preprocess_nmt.py --config 'config/config.yaml'
 ```
 
-- Config file can be found at `config/config.yaml`
-
-- To train model:
+- To train the model:
 ```bash
-python train_model.py
+python train_nmt.py --config 'config/config.yaml'
 ```
 
-- To test model:
+- To test the model:
 ```bash
-python test_model.py
+python test_nmt.py --config 'config/config.yaml'
 ```
 
 ## TODO
-- [ ] Expand English contractions
+- [x] Expand English contractions
 - [ ] Process result sentences (e.g. capitalization, punctuation)

@@ -1,7 +1,7 @@
 from tqdm import tqdm
 
 import torch
-# from torchtext.data.metrics import bleu_score
+from torchtext.data.metrics import bleu_score
 
 from tokenizers import Tokenizer
 
