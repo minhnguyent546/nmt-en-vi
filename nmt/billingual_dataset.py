@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 
 from tokenizers import Tokenizer
 
-import constants as const
+import nmt.constants as const
 
 class BilingualDataset(Dataset):
     def __init__(

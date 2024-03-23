@@ -8,10 +8,10 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
 
-import utils.model as model_util
-import utils.config as config_util
-import utils.bleu as bleu_util
-import constants as const
+import nmt.utils.model as model_util
+import nmt.utils.config as config_util
+import nmt.utils.bleu as bleu_util
+import nmt.constants as const
 
 def train_model(config: dict):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -144,11 +144,7 @@ def train_model(config: dict):
 
         torch.save(checkpoint_dict, model_checkpoint_path)
 
-def main(config_file: str):
-    config = config_util.get_config(config_file)
-    train_model(config)
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Train the model')
     parser.add_argument('--config',
                         help='Path to the config file (default: ./config/config.yaml)',
@@ -156,4 +152,8 @@ if __name__ == '__main__':
                         default='./config/config.yaml')
 
     args = parser.parse_args()
-    main(**vars((args)))
+    config = config_util.get_config(args.config_file)
+    train_model(config)
+
+if __name__ == '__main__':
+    main()

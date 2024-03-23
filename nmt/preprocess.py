@@ -11,11 +11,11 @@ from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
-from billingual_dataset import BilingualDataset
-import utils.dataset as dataset_util
-import utils.config as config_util
+from nmt.billingual_dataset import BilingualDataset
+import nmt.utils.dataset as dataset_util
+import nmt.utils.config as config_util
+import nmt.constants as const
 
-import constants as const
 
 def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
@@ -125,11 +125,7 @@ def preprocess(config: dict):
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     torch.save(data_loaders, data_loaders_path)
 
-def main(config_file: str):
-    config = config_util.get_config(config_file)
-    preprocess(config)
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Preprocess the dataset')
     parser.add_argument('--config',
                         help='Path to the config file (default: ./config/config.yaml)',
@@ -137,4 +133,8 @@ if __name__ == '__main__':
                         default='./config/config.yaml')
 
     args = parser.parse_args()
-    main(**vars((args)))
+    config = config_util.get_config(args.config_file)
+    preprocess(config)
+
+if __name__ == '__main__':
+    main()

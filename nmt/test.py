@@ -8,10 +8,10 @@ import torch.nn as nn
 
 from tokenizers import Tokenizer
 
-import utils.model as model_util
-import utils.config as config_util
-import utils.bleu as bleu_util
-import constants as const
+import nmt.utils.model as model_util
+import nmt.utils.config as config_util
+import nmt.utils.bleu as bleu_util
+import nmt.constants as const
 
 def test_model(config: dict):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -71,11 +71,7 @@ def test_model(config: dict):
         'val_bleu-4': [test_bleu[3]],
     }).to_string(index=False))
 
-def main(config_file: str):
-    config = config_util.get_config(config_file)
-    test_model(config)
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Test the model')
     parser.add_argument('--config',
                         help='Path to the config file (default: ./config/config.yaml)',
@@ -83,4 +79,8 @@ if __name__ == '__main__':
                         default='./config/config.yaml')
 
     args = parser.parse_args()
-    main(**vars((args)))
+    config = config_util.get_config(args.config_file)
+    test_model(config)
+
+if __name__ == '__main__':
+    main()

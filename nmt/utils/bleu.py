@@ -1,13 +1,13 @@
 from tqdm import tqdm
 
 import torch
-from torchtext.data.metrics import bleu_score
+# from torchtext.data.metrics import bleu_score
 
 from tokenizers import Tokenizer
 
 from transformer import Transformer
-from billingual_dataset import BilingualDataset
-from . import model as model_util
+from nmt.billingual_dataset import BilingualDataset
+from nmt.utils import model as model_util
 
 def compute_dataset_bleu(
     model: Transformer,

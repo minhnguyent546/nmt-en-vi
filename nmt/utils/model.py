@@ -13,7 +13,7 @@ from tokenizers import Tokenizer
 
 from transformer import Transformer, make_transformer
 import transformer.utils.functional as fun
-import constants as const
+import nmt.constants as const
 
 def make_model(
     src_tokenizer: Tokenizer,
