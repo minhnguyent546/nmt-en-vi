@@ -1,4 +1,5 @@
 from pathlib import Path
+import argparse
 import pandas as pd
 
 import torch
@@ -124,9 +125,16 @@ def preprocess(config: dict):
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     torch.save(data_loaders, data_loaders_path)
 
-def main():
-    config = config_util.get_config('./config/config.yaml')
+def main(config_file: str):
+    config = config_util.get_config(config_file)
     preprocess(config)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Preprocess the dataset')
+    parser.add_argument('--config',
+                        help='Path to the config file (default: ./config/config.yaml)',
+                        dest='config_file',
+                        default='./config/config.yaml')
+
+    args = parser.parse_args()
+    main(**vars((args)))

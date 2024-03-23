@@ -1,6 +1,7 @@
-from pathlib import Path
 import sys
+import argparse
 import pandas as pd
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -12,7 +13,7 @@ import utils.config as config_util
 import utils.bleu as bleu_util
 import constants as const
 
-def test_model(config):
+def test_model(config: dict):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
 
@@ -70,9 +71,16 @@ def test_model(config):
         'val_bleu-4': [test_bleu[3]],
     }).to_string(index=False))
 
-def main():
-    config = config_util.get_config('./config/config.yaml')
+def main(config_file: str):
+    config = config_util.get_config(config_file)
     test_model(config)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Test the model')
+    parser.add_argument('--config',
+                        help='Path to the config file (default: ./config/config.yaml)',
+                        dest='config_file',
+                        default='./config/config.yaml')
+
+    args = parser.parse_args()
+    main(**vars((args)))

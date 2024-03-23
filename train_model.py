@@ -1,5 +1,6 @@
-from pathlib import Path
+import argparse
 import pandas as pd
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -12,7 +13,7 @@ import utils.config as config_util
 import utils.bleu as bleu_util
 import constants as const
 
-def train_model(config):
+def train_model(config: dict):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f'Using device {device}')
     device = torch.device(device)
@@ -143,10 +144,16 @@ def train_model(config):
 
         torch.save(checkpoint_dict, model_checkpoint_path)
 
-def main():
-    config = config_util.get_config('./config/config.yaml')
+def main(config_file: str):
+    config = config_util.get_config(config_file)
     train_model(config)
 
-
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Train the model')
+    parser.add_argument('--config',
+                        help='Path to the config file (default: ./config/config.yaml)',
+                        dest='config_file',
+                        default='./config/config.yaml')
+
+    args = parser.parse_args()
+    main(**vars((args)))
