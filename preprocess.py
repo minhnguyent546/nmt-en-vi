@@ -34,20 +34,22 @@ def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> To
     return tokenizer
 
 def preprocess(config: dict):
-    dataset_dict: DatasetDict = load_dataset(
+    raw_datasets: DatasetDict = load_dataset(
         path=config['dataset_path'],
         name=config['dataset_subset'],
         cache_dir=config['dataset_cache_dir'],
     )
     max_train_set_size = config['max_train_set_size']
-    if max_train_set_size is not None and max_train_set_size < len(dataset_dict['train']):
-        dataset_dict['train'] = dataset_dict['train'].shuffle(config['seed']).select(range(max_train_set_size))
+    if max_train_set_size is not None and max_train_set_size < len(raw_datasets['train']):
+        raw_datasets['train'] = raw_datasets['train'].shuffle(config['seed']).select(range(max_train_set_size))
 
-    raw_datasets = dataset_dict['train'].train_test_split(test_size=config['val_size'], seed=config['seed'])
-    # rename the default "test" split to "validation"
-    raw_datasets['validation'] = raw_datasets.pop('test')
-    # add the test set for raw_datasets
-    raw_datasets['test'] = dataset_dict['test']
+    if config['val_size_rate'] is not None:
+        old_datasets = raw_datasets
+        raw_datasets = old_datasets['train'].train_test_split(test_size=config['val_size_rate'], seed=config['seed'])
+        # rename the default "test" split to "validation"
+        raw_datasets['validation'] = raw_datasets.pop('test')
+        # add the test set for raw_datasets
+        raw_datasets['test'] = old_datasets['test']
 
     num_rows = raw_datasets.num_rows
     raw_datasets = dataset_util.process_dataset_sentences(raw_datasets,
@@ -70,6 +72,7 @@ def preprocess(config: dict):
                                                          config['src_lang'],
                                                          config['target_lang'],
                                                          batched=True)
+
     for dataset, num_row in raw_datasets.num_rows.items():
         if dataset in num_rows:
             print(f'Removed {num_rows[dataset] - num_row} sentences from {dataset}')
