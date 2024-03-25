@@ -15,14 +15,6 @@ def create_iter_from_dataset(dataset, lang: str):
     for item in dataset:
         yield item['translation'][lang]
 
-def split_dataset(dataset, split_rate: float = 0.9):
-    dataset_size = len(dataset)
-    train_dataset_size = int(dataset_size * split_rate)
-    validation_dataset_size = dataset_size - train_dataset_size
-
-    train_dataset, validation_dataset = random_split(dataset, [train_dataset_size, validation_dataset_size])
-    return train_dataset, validation_dataset
-
 def _process_en_sentence(sentence: str) -> str:
     sentence = sentence.strip().lower()
     sentence = re.sub(r" (&[a-zA-Z]+;)", r"\1", sentence)

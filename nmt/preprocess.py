@@ -34,16 +34,22 @@ def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> To
 
     return tokenizer
 
-def preprocess(config: dict):
+def _load_datasets(config: dict) -> DatasetDict | Dataset:
     raw_datasets: DatasetDict = load_dataset(
         path=config['dataset_path'],
-        name=config['dataset_subset'],
+        name=config['dataset_name'],
         cache_dir=config['dataset_cache_dir'],
+        **config['dataset_other_options']
     )
-    max_train_set_size = config['max_train_set_size']
-    if max_train_set_size is not None and max_train_set_size < len(raw_datasets['train']):
-        raw_datasets['train'] = raw_datasets['train'].shuffle(config['seed']).select(range(max_train_set_size))
 
+    # slicing the dataset
+    for split in raw_datasets:
+        if split in config['max_set_size'] and config['max_set_size'][split] is not None:
+            max_set_size = config['max_set_size'][split]
+            if max_set_size < len(raw_datasets[split]):
+                raw_datasets[split] = raw_datasets[split].shuffle(config['seed']).select(range(max_set_size))
+
+    # creating validation set from train set
     if config['val_size_rate'] is not None:
         old_datasets = raw_datasets
         raw_datasets = old_datasets['train'].train_test_split(test_size=config['val_size_rate'], seed=config['seed'])
@@ -52,6 +58,10 @@ def preprocess(config: dict):
         # add the test set for raw_datasets
         raw_datasets['test'] = old_datasets['test']
 
+    return raw_datasets
+
+def preprocess(config: dict):
+    raw_datasets = _load_datasets(config)
     num_rows = raw_datasets.num_rows
     raw_datasets = dataset_util.process_dataset_sentences(raw_datasets,
                                                           langs=[config['src_lang'], config['target_lang']],
@@ -61,8 +71,10 @@ def preprocess(config: dict):
     print(pd.DataFrame(raw_datasets['train']['translation'][:25]))
 
     print('Building tokenizers from train dataset')
-    src_tokenizer = tokenize(raw_datasets['train'], config['src_lang'], config, min_freq=2)
-    target_tokenizer = tokenize(raw_datasets['train'], config['target_lang'], config, min_freq=2)
+    src_tokenizer = tokenize(raw_datasets['train'], config['src_lang'], config)
+    target_tokenizer = tokenize(raw_datasets['train'], config['target_lang'], config)
+    print('Size of source vocabulary:', src_tokenizer.get_vocab_size())
+    print('Size of target vocabulary:', target_tokenizer.get_vocab_size())
 
     print('Removing invalid sentences')
     num_reserved_tokens = 2  # for SOS and EOS tokens

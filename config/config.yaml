@@ -15,26 +15,30 @@ d_model: 512
 num_layers: 6
 num_heads: 8
 d_ffn: 2048
-dropout_rate: 0.1
-attention_dropout_rate: 0.1
+dropout_rate: 0.2
+attention_dropout_rate: 0.2
 
 # optimization
 optim: adam
-weight_decay: 1.0e-3
-learning_rate: 1.0 # change lr to small value (e.g. 1e-4) if lr scheduler is disabled
+weight_decay: 5.0e-5
+learning_rate: 0.5 # change lr to small value (e.g. 1e-4) if lr scheduler is disabled
 enable_lr_scheduler: True
-warmup_steps: 4000
+warmup_steps: 8000
 label_smoothing: 0.1
 max_grad_norm: 1.0
 beam_size: 5
 
 # dataset (huggingface)
 dataset_path: mt_eng_vietnamese
-dataset_subset: iwslt2015-en-vi
+dataset_name: iwslt2015-en-vi
 dataset_cache_dir: datasets
+dataset_other_options: {}
 vi_word_segmentation: True
 val_size_rate: null # a rate for creating custom validation set from training set
-max_train_set_size: 500_000
+max_set_size:
+    train: 400_000
+    test: 2_000
+    val: 2_000
 
 # training
 preload: latest # 'latest' or epoch number
@@ -44,7 +48,7 @@ num_epochs: 10
 per_epoch_train_max_steps: null
 val_max_steps: null
 test_max_steps: null
-seq_length: 128
+seq_length: 125
 beam_return_topk: 3
 
 # testing
