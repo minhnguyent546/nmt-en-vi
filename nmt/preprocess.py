@@ -12,10 +12,8 @@ from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
 from nmt.billingual_dataset import BilingualDataset
-import nmt.utils.dataset as dataset_util
-import nmt.utils.config as config_util
+from nmt.utils import dataset_util, config_util, set_seed
 import nmt.constants as const
-
 
 def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
@@ -42,25 +40,26 @@ def _load_datasets(config: dict) -> DatasetDict | Dataset:
         **config['dataset_other_options']
     )
 
-    # slicing the dataset
-    for split in raw_datasets:
-        if split in config['max_set_size'] and config['max_set_size'][split] is not None:
-            max_set_size = config['max_set_size'][split]
-            if max_set_size < len(raw_datasets[split]):
-                raw_datasets[split] = raw_datasets[split].shuffle(config['seed']).select(range(max_set_size))
-
     # creating validation set from train set
     if config['val_size_rate'] is not None:
         old_datasets = raw_datasets
-        raw_datasets = old_datasets['train'].train_test_split(test_size=config['val_size_rate'], seed=config['seed'])
+        raw_datasets = old_datasets['train'].train_test_split(test_size=config['val_size_rate'])
         # rename the default "test" split to "validation"
         raw_datasets['validation'] = raw_datasets.pop('test')
         # add the test set for raw_datasets
         raw_datasets['test'] = old_datasets['test']
 
+    # slicing the dataset
+    for split in raw_datasets:
+        if split in config['max_set_size'] and config['max_set_size'][split] is not None:
+            max_set_size = config['max_set_size'][split]
+            if 0 < max_set_size and max_set_size < len(raw_datasets[split]):
+                raw_datasets[split] = raw_datasets[split].shuffle().select(range(max_set_size))
+
     return raw_datasets
 
 def preprocess(config: dict):
+    set_seed(config['seed'])
     raw_datasets = _load_datasets(config)
     num_rows = raw_datasets.num_rows
     raw_datasets = dataset_util.process_dataset_sentences(raw_datasets,
@@ -68,7 +67,9 @@ def preprocess(config: dict):
                                                           vi_config=config,
                                                           batched=True)
 
-    print(pd.DataFrame(raw_datasets['train']['translation'][:25]))
+    print(pd.DataFrame(raw_datasets['train']['translation'][:5]))
+    print(pd.DataFrame(raw_datasets['validation']['translation'][:5]))
+    print(pd.DataFrame(raw_datasets['test']['translation'][:5]))
 
     print('Building tokenizers from train dataset')
     src_tokenizer = tokenize(raw_datasets['train'], config['src_lang'], config)
@@ -147,6 +148,7 @@ def main():
     args = parser.parse_args()
     config = config_util.get_config(args.config_file)
     preprocess(config)
+
 
 if __name__ == '__main__':
     main()

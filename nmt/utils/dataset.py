@@ -2,7 +2,6 @@ import html
 import re
 from typing import Any
 
-from torch.utils.data import random_split
 from torch.nn.utils.rnn import pad_sequence
 
 from datasets import Dataset, DatasetDict

@@ -8,12 +8,11 @@ import torch.nn as nn
 
 from tokenizers import Tokenizer
 
-import nmt.utils.model as model_util
-import nmt.utils.config as config_util
-import nmt.utils.bleu as bleu_util
+from nmt.utils import model_util, config_util, bleu_util, set_seed
 import nmt.constants as const
 
 def test_model(config: dict):
+    set_seed(config['seed'])
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
 
@@ -34,7 +33,7 @@ def test_model(config: dict):
 
     test_checkpoint = config['test_checkpoint']
     model_weights_path = None
-    if test_checkpoint == 'latest':
+    if test_checkpoint == const.LATEST:
         model_weights_path = model_util.get_latest_weights_file_path(config=config)
     else:
         model_weights_path = model_util.get_weights_file_path(f'{test_checkpoint:0>2}', config)
@@ -53,15 +52,10 @@ def test_model(config: dict):
     loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN),
                                         label_smoothing=config['label_smoothing'])
 
-    test_stats = model_util.evaluate(model, device, loss_function, test_data_loader,
-                                     eval_max_steps=config['test_max_steps'])
-    test_bleu = bleu_util.compute_dataset_bleu(model, device, test_data_loader.dataset,
+    test_stats = model_util.evaluate(model, loss_function, test_data_loader)
+    test_bleu = bleu_util.compute_dataset_bleu(model, test_data_loader.dataset,
                                               target_tokenizer, config['seq_length'],
-                                              teacher_forcing=False,
-                                              beam_size=config['beam_size'],
-                                              beam_return_topk=config['beam_return_topk'],
-                                              max_n=4, log_sentences=True,
-                                              logging_interval=10)
+                                              **config['compute_bleu_kwargs'], )
     print(pd.DataFrame({
         'test_loss': [test_stats['eval_loss']],
         'test_accuracy': [test_stats['eval_accuracy']],
@@ -81,6 +75,7 @@ def main():
     args = parser.parse_args()
     config = config_util.get_config(args.config_file)
     test_model(config)
+
 
 if __name__ == '__main__':
     main()

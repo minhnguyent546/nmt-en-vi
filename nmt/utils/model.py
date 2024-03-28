@@ -1,5 +1,6 @@
 from pathlib import Path
 from tqdm import tqdm
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -13,6 +14,7 @@ from tokenizers import Tokenizer
 
 from transformer import Transformer, make_transformer
 import transformer.utils.functional as fun
+from nmt.utils import bleu_util
 import nmt.constants as const
 
 def make_model(
@@ -31,6 +33,7 @@ def make_model(
         config['seq_length'],
         src_pad_token_id,
         target_pad_token_id,
+        device='auto',
         d_model=config['d_model'],
         num_heads=config['num_heads'],
         num_layers=config['num_layers'],
@@ -269,53 +272,52 @@ def beam_search_decode(
 
 def train(
     model: Transformer,
-    device: torch.device,
-    optimizer,
+    optimizer: torch.optim.Optimizer,
     loss_function,
     train_data_loader: DataLoader,
+    validation_data_loader: DataLoader,
+    src_tokenizer: Tokenizer,
+    target_tokenizer: Tokenizer,
     epoch: int,
     global_step: int,
     config: dict,
-    train_max_steps: int | None = None,
+    validation_interval: int = 2_000,
     writer: SummaryWriter | None = None,
     lr_scheduler = None,
-) -> dict:
+) -> dict[int, dict[str, Any]]:
     """
     Args:
         model (Transformer): model to be trained
-        device (device): device
-        optimizer: optimizer
+        optimizer (torch.optim.Optimizer): optimizer
         loss_function: loss function
         train_data_loader (DataLoader): data loader for training
+        validation_data_loader (DataLoader): data loader for validation
+        src_tokenizer (DataLoader): tokenizer for source sentences
+        target_tokenizer (DataLoader): tokenizer for target sentences
         epoch (int): current epoch
         global_step (int): start from this global step
         config (dict): dictionary of configurations
-        train_max_steps (int): maximum number of iterations for training (default: None)
+        validation_interval (int): run validation every this interval (default: 2000)
         writer (SummaryWriter): tensorboard writer (default: None)
         lr_scheduler: learning rate scheduler (default: None)
 
     Returns:
-        train stats (dict)
+        dict[int, dict[str, Any]]: training stats
     """
 
+    device = model.device
     num_epochs = config['num_epochs']
-    total_steps = len(train_data_loader)
-    if train_max_steps is not None:
-        total_steps = min(total_steps, train_max_steps)
-
     batch_iterator = tqdm(train_data_loader,
-                          desc=f'Processing epoch {epoch + 1:02d}/{num_epochs:02d}',
-                          total=total_steps)
+                          desc=f'Processing epoch {epoch + 1:02d}/{num_epochs:02d}')
     train_loss = 0.0
     train_acc = 0.0
+    train_stats = {}
+    iter_count = 0
 
     # set model in training mode
     model.train()
 
-    for batch_idx, batch in enumerate(batch_iterator):
-        if batch_idx >= total_steps:
-            break
-
+    for batch in batch_iterator:
         encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
         decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
 
@@ -350,44 +352,46 @@ def train(
         train_acc += compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
         batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
+        iter_count += 1
+
         if writer is not None:
             writer.add_scalar('loss/train_batch_loss', loss.item(), global_step)
+
+            if (global_step + 1) % validation_interval == 0:
+                valid_stats = evaluate(model, loss_function, validation_data_loader)
+                valid_bleu = bleu_util.compute_dataset_bleu(model,
+                                                            validation_data_loader.dataset,
+                                                            target_tokenizer,
+                                                            config['seq_length'],
+                                                            **config['compute_bleu_kwargs'])
+                train_stats[global_step + 1] = valid_stats
+                train_stats[global_step + 1]['train_loss'] = train_loss / iter_count
+                train_stats[global_step + 1]['train_accuracy'] = train_acc / iter_count
+                train_stats[global_step + 1]['valid_bleu'] = valid_bleu
+
             writer.flush()
 
         global_step += 1
 
-    return {
-        'train_loss': train_loss / total_steps,
-        'train_accuracy': train_acc / total_steps,
-        'global_step': global_step,
-    }
+    return train_stats
 
 def evaluate(
     model: Transformer,
-    device: torch.device,
     loss_function,
     eval_data_loader: DataLoader,
-    eval_max_steps: int | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     Args:
         model (Transformer): model to be evaluated
-        device (device): device
         loss_function: loss function
         eval_data_loader (DataLoader): data loader for evaluation
-        eval_max_step (int): maximum number of iterations for evaluation (default: None)
 
     Returns:
-        evaluation stats (dict)
+        dict[str, Any]: evaluation stats
     """
 
-    total_steps = len(eval_data_loader)
-    if eval_max_steps is not None:
-        total_steps = min(total_steps, eval_max_steps)
-
-    batch_iterator = tqdm(eval_data_loader,
-                          desc='Evaluating',
-                          total=total_steps)
+    device = model.device
+    batch_iterator = tqdm(eval_data_loader, desc='Evaluating')
 
     eval_loss = 0.0
     eval_acc = 0.0
@@ -396,10 +400,7 @@ def evaluate(
     model.eval()
 
     with torch.no_grad():
-        for batch_idx, batch in enumerate(batch_iterator):
-            if batch_idx >= total_steps:
-                break
-
+        for batch in batch_iterator:
             encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
             decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
             labels = batch['labels'].to(device)  # (batch_size, seq_length)
@@ -419,6 +420,6 @@ def evaluate(
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
     return {
-        'eval_loss': eval_loss / total_steps,
-        'eval_accuracy': eval_acc / total_steps,
+        'eval_loss': eval_loss / len(eval_data_loader),
+        'eval_accuracy': eval_acc / len(eval_data_loader),
     }

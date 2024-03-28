@@ -1,5 +1,4 @@
 import argparse
-import pandas as pd
 from pathlib import Path
 
 import torch
@@ -10,7 +9,6 @@ from tokenizers import Tokenizer
 
 import nmt.utils.model as model_util
 import nmt.utils.config as config_util
-import nmt.utils.bleu as bleu_util
 import nmt.constants as const
 
 def train_model(config: dict):
@@ -85,51 +83,28 @@ def train_model(config: dict):
         # clear cuda cache
         torch.cuda.empty_cache()
 
-        train_stats = model_util.train(model, device, optimizer, loss_function,
-                                       train_data_loader, epoch, global_step,
-                                       config, train_max_steps=config['per_epoch_train_max_steps'],
+        train_stats = model_util.train(model, optimizer, loss_function,
+                                       train_data_loader, validation_data_loader,
+                                       src_tokenizer, target_tokenizer,
+                                       epoch, global_step, config,
+                                       validation_interval=config['validation_interval'],
                                        writer=writer, lr_scheduler=lr_scheduler)
 
-        val_stats = model_util.evaluate(model, device, loss_function,
-                                        validation_data_loader,
-                                        eval_max_steps=config['val_max_steps'])
+        for step, stats in train_stats.items():
+            writer.add_scalars('loss', {
+                'train': stats['train_loss'],
+                'val': stats['eval_loss'],
+            }, step)
+            writer.add_scalars('accuracy', {
+                'train': stats['train_accuracy'],
+                'val': stats['eval_accuracy'],
+            }, step)
+            writer.add_scalars('bleu/val_bleu', {
+                f'BLEU-{i + 1}': stats['valid_bleu'][i]
+                for i in range(4)
+            }, epoch)
 
-        val_bleu = bleu_util.compute_dataset_bleu(model, device, validation_data_loader.dataset,
-                                                  target_tokenizer, config['seq_length'],
-                                                  teacher_forcing=False,
-                                                  beam_size=config['beam_size'],
-                                                  beam_return_topk=config['beam_return_topk'],
-                                                  max_n=4, log_sentences=True,
-                                                  logging_interval=20, max_steps=200)
-
-        writer.add_scalars('loss', {
-            'train_loss': train_stats['train_loss'],
-            'val_loss': val_stats['eval_loss'],
-        }, epoch)
-        writer.add_scalars('accuracy', {
-            'train_accuracy': train_stats['train_accuracy'],
-            'val_accuracy': val_stats['eval_accuracy'],
-        }, epoch)
-        writer.add_scalars('bleu/val_bleu', {
-            f'BLEU-{i + 1}': val_bleu[i]
-            for i in range(4)
-        }, epoch)
-
-        # write epoch information to the screen
-        print(pd.DataFrame({
-            'epoch': [epoch + 1],
-            'global_step': [train_stats['global_step']],
-            'train_loss': [train_stats['train_loss']],
-            'val_loss': [val_stats['eval_loss']],
-            'train_accuracy': [train_stats['train_accuracy']],
-            'val_accuracy': [val_stats['eval_accuracy']],
-            'val_bleu-1': [val_bleu[0]],
-            'val_bleu-2': [val_bleu[1]],
-            'val_bleu-3': [val_bleu[2]],
-            'val_bleu-4': [val_bleu[3]],
-        }).to_string(index=False))
-
-        global_step = train_stats['global_step']
+        global_step += len(train_data_loader)
 
         # save the model after every epoch
         model_checkpoint_path = model_util.get_weights_file_path(f'{epoch:02d}', config)

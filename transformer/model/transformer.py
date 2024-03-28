@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from torch import Tensor
 
@@ -18,6 +19,7 @@ class Transformer(nn.Module):
         last_linear: nn.Linear,
         src_pad_token_id: int,
         target_pad_token_id: int,
+        device: torch.device,
     ):
         """
         Args:
@@ -30,6 +32,7 @@ class Transformer(nn.Module):
             last_linear (nn.Linear): the last linear layer
             src_pad_token_id (int): id of the padding token for source
             target_pad_token_id (int): id of the padding token for target
+            device (torch.device): device type (cpu or cuda)
         """
 
         super().__init__()
@@ -42,6 +45,7 @@ class Transformer(nn.Module):
         self.last_linear = last_linear
         self.src_pad_token_id = src_pad_token_id
         self.target_pad_token_id = target_pad_token_id
+        self.device = device
 
     def encode(self, src: Tensor, src_mask: Tensor | None = None):
         """
@@ -123,6 +127,7 @@ def make_transformer(
     target_seq_length: int,
     src_pad_token_id: int,
     target_pad_token_id: int,
+    device: torch.device | str = 'auto',
     d_model: int = 512,
     num_heads: int = 8,
     num_layers: int = 6,
@@ -149,6 +154,10 @@ def make_transformer(
     encoder = Encoder(encoder_layer, d_model, num_layers)
     decoder = Decoder(decoder_layer, d_model, num_layers)
     last_linear = nn.Linear(d_model, target_vocab_size)
+    if isinstance(device, str):
+        if device == 'auto':
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = torch.device(device)
 
     # create a transformer
     transformer = Transformer(
@@ -160,7 +169,8 @@ def make_transformer(
         target_pe,
         last_linear,
         src_pad_token_id,
-        target_pad_token_id
+        target_pad_token_id,
+        device,
     )
 
     print(f'Model has {fun.count_parameters(transformer)} learnable parameters', )

@@ -7,15 +7,14 @@ from tokenizers import Tokenizer
 
 from transformer import Transformer
 from nmt.billingual_dataset import BilingualDataset
-from nmt.utils import model as model_util
+import nmt.utils.model as model_util
 
 def compute_dataset_bleu(
     model: Transformer,
-    device: torch.device,
-    billingual_dataset: BilingualDataset,
+    dataset: BilingualDataset,
     target_tokenizer: Tokenizer,
     seq_length: int,
-    teacher_forcing: bool = True,
+    teacher_forcing: bool = False,
     beam_size: int | None = None,
     beam_return_topk: int = 1,
     max_n: int = 4,
@@ -24,15 +23,16 @@ def compute_dataset_bleu(
     max_steps: int | None = None,
 ) -> list[float]:
 
+    device = model.device
     src_tokens_list = []
     target_tokens_list = []
     pred_tokens_list = []
 
-    total_steps = len(billingual_dataset)
+    total_steps = len(dataset)
     if max_steps is not None:
         total_steps = min(total_steps, max_steps)
 
-    dataset_iterator = tqdm(billingual_dataset,
+    dataset_iterator = tqdm(dataset,
                             desc='Computing validation BLEU',
                             total=total_steps)
     cand_list = None

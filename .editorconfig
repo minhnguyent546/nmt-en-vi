@@ -23,6 +23,9 @@ indent_size = 2
 [{*.tex,*.sty}]
 indent_size = 2
 
+[{*.yaml,*.yml}]
+indent_size = 2
+
 [{Makefile,makefile}]
 indent_style = tab
 indent_size = 2
