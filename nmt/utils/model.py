@@ -1,5 +1,5 @@
 from pathlib import Path
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 from typing import Any
 
 import torch
@@ -360,10 +360,10 @@ def train(
             if (global_step + 1) % validation_interval == 0:
                 valid_stats = evaluate(model, loss_function, validation_data_loader)
                 valid_bleu = compute_dataset_bleu(model,
-                                                            validation_data_loader.dataset,
-                                                            target_tokenizer,
-                                                            config['seq_length'],
-                                                            **config['compute_bleu_kwargs'])
+                                                  validation_data_loader.dataset,
+                                                  target_tokenizer,
+                                                  config['seq_length'],
+                                                  **config['compute_bleu_kwargs'])
                 train_stats[global_step + 1] = valid_stats
                 train_stats[global_step + 1]['train_loss'] = train_loss / iter_count
                 train_stats[global_step + 1]['train_accuracy'] = train_acc / iter_count

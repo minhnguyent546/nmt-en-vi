@@ -1,4 +1,4 @@
-from tqdm import tqdm
+from tqdm.autonotebook import tqdm
 
 import torch
 from torchtext.data.metrics import bleu_score
@@ -32,9 +32,10 @@ def compute_dataset_bleu(
     if max_steps is not None:
         total_steps = min(total_steps, max_steps)
 
-    dataset_iterator = tqdm(dataset,
+    dataset_iterator = tqdm(enumerate(dataset),
                             desc='Computing validation BLEU',
                             total=total_steps)
+
     cand_list = None
     cand_text_list = None
 
@@ -42,7 +43,7 @@ def compute_dataset_bleu(
     model.eval()
 
     with torch.no_grad():
-        for data_idx, data in enumerate(dataset_iterator):
+        for data_idx, data in dataset_iterator:
             if data_idx >= total_steps:
                 break
 
@@ -91,6 +92,7 @@ def compute_dataset_bleu(
                     for n_gram in range(1, max_n + 1)
                 ]
 
+                # TODO: using write in nested tqdm loop is hard to read
                 dataset_iterator.write(f'Source: {src_text}')
                 dataset_iterator.write(f'Target: {target_text}')
                 if cand_text_list is not None:

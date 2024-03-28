@@ -58,6 +58,6 @@ compute_bleu_kwargs:
   teacher_forcing: false
   beam_size: 4
   beam_return_topk: 3
-  log_sentences: true
+  log_sentences: False
   logging_interval: 100
   max_steps: 500

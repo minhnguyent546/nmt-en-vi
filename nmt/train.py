@@ -106,7 +106,7 @@ def train_model(config: dict):
             writer.add_scalars('bleu/val_bleu', {
                 f'BLEU-{i + 1}': stats['valid_bleu'][i]
                 for i in range(4)
-            }, epoch)
+            }, step)
 
         global_step += len(train_data_loader)
 
