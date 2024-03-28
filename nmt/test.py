@@ -8,7 +8,12 @@ import torch.nn as nn
 
 from tokenizers import Tokenizer
 
-from nmt.utils import model_util, config_util, bleu_util, set_seed
+from nmt.utils import (
+    model as model_util,
+    config as config_util,
+    bleu as bleu_util,
+)
+from nmt.utils.misc import set_seed
 import nmt.constants as const
 
 def test_model(config: dict):

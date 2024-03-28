@@ -7,11 +7,15 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
 
-import nmt.utils.model as model_util
-import nmt.utils.config as config_util
+from nmt.utils import (
+    model as model_util,
+    config as config_util,
+)
+from nmt.utils.misc import set_seed
 import nmt.constants as const
 
 def train_model(config: dict):
+    set_seed(config['seed'])
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f'Using device {device}')
     device = torch.device(device)

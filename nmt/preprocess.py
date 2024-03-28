@@ -12,7 +12,11 @@ from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
 from nmt.billingual_dataset import BilingualDataset
-from nmt.utils import dataset_util, config_util, set_seed
+from nmt.utils import (
+    dataset as dataset_util,
+    config as config_util,
+)
+from nmt.utils.misc import set_seed
 import nmt.constants as const
 
 def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> Tokenizer:

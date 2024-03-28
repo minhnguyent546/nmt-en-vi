@@ -14,7 +14,7 @@ from tokenizers import Tokenizer
 
 from transformer import Transformer, make_transformer
 import transformer.utils.functional as fun
-from nmt.utils import bleu_util
+from nmt.utils.bleu import compute_dataset_bleu
 import nmt.constants as const
 
 def make_model(
@@ -359,7 +359,7 @@ def train(
 
             if (global_step + 1) % validation_interval == 0:
                 valid_stats = evaluate(model, loss_function, validation_data_loader)
-                valid_bleu = bleu_util.compute_dataset_bleu(model,
+                valid_bleu = compute_dataset_bleu(model,
                                                             validation_data_loader.dataset,
                                                             target_tokenizer,
                                                             config['seq_length'],
