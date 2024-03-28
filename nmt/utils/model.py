@@ -49,12 +49,16 @@ def make_optimizer(model: Transformer, config: dict) -> optim.Optimizer:
         optimizer = optim.Adam(
             model.parameters(),
             lr=config['learning_rate'],
+            betas=config['betas'],
+            eps=config['eps'],
             weight_decay=config['weight_decay']
         )
     elif optim_type == 'adamw':
         optimizer = optim.AdamW(
             model.parameters(),
             lr=config['learning_rate'],
+            betas=config['betas'],
+            eps=config['eps'],
             weight_decay=config['weight_decay']
         )
     else:
