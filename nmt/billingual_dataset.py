@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 
 from tokenizers import Tokenizer
 
-import nmt.constants as const
+from nmt.constants import SpecialToken
 
 class BilingualDataset(Dataset):
     def __init__(
@@ -26,13 +26,13 @@ class BilingualDataset(Dataset):
         self.seq_length = seq_length
         self.add_padding_tokens = add_padding_tokens
 
-        assert src_tokenizer.token_to_id(const.SOS_TOKEN) == target_tokenizer.token_to_id(const.SOS_TOKEN)
-        assert src_tokenizer.token_to_id(const.EOS_TOKEN) == target_tokenizer.token_to_id(const.EOS_TOKEN)
-        assert src_tokenizer.token_to_id(const.PAD_TOKEN) == target_tokenizer.token_to_id(const.PAD_TOKEN)
+        assert src_tokenizer.token_to_id(SpecialToken.SOS) == target_tokenizer.token_to_id(SpecialToken.SOS)
+        assert src_tokenizer.token_to_id(SpecialToken.EOS) == target_tokenizer.token_to_id(SpecialToken.EOS)
+        assert src_tokenizer.token_to_id(SpecialToken.PAD) == target_tokenizer.token_to_id(SpecialToken.PAD)
 
-        self.sos_token_id = src_tokenizer.token_to_id(const.SOS_TOKEN)
-        self.eos_token_id = src_tokenizer.token_to_id(const.EOS_TOKEN)
-        self.pad_token_id = src_tokenizer.token_to_id(const.PAD_TOKEN)
+        self.sos_token_id = src_tokenizer.token_to_id(SpecialToken.SOS)
+        self.eos_token_id = src_tokenizer.token_to_id(SpecialToken.EOS)
+        self.pad_token_id = src_tokenizer.token_to_id(SpecialToken.PAD)
 
     def __len__(self):
         return len(self.dataset)

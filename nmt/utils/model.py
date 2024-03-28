@@ -15,7 +15,7 @@ from tokenizers import Tokenizer
 from transformer import Transformer, make_transformer
 import transformer.utils.functional as fun
 from nmt.utils.bleu import compute_dataset_bleu
-import nmt.constants as const
+from nmt.constants import SpecialToken
 
 def make_model(
     src_tokenizer: Tokenizer,
@@ -24,8 +24,8 @@ def make_model(
 ) -> Transformer:
     src_vocab_size = src_tokenizer.get_vocab_size()
     target_vocab_size = target_tokenizer.get_vocab_size()
-    src_pad_token_id = src_tokenizer.token_to_id(const.PAD_TOKEN)
-    target_pad_token_id = target_tokenizer.token_to_id(const.PAD_TOKEN)
+    src_pad_token_id = src_tokenizer.token_to_id(SpecialToken.PAD)
+    target_pad_token_id = target_tokenizer.token_to_id(SpecialToken.PAD)
     model = make_transformer(
         src_vocab_size,
         target_vocab_size,
@@ -147,8 +147,8 @@ def greedy_search_decode(
         Tensor: tensor of predicted token ids
     """
 
-    sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
-    eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
+    sos_token_id = target_tokenizer.token_to_id(SpecialToken.SOS)
+    eos_token_id = target_tokenizer.token_to_id(SpecialToken.EOS)
 
     encoder_input = encoder_input.unsqueeze(0).to(device)
     encoder_mask = fun.create_encoder_mask(encoder_input, model.src_pad_token_id, has_batch_dim=True)
@@ -209,8 +209,8 @@ def beam_search_decode(
         list[Tensor]: list of candidate tensors of predicted token ids
     """
 
-    sos_token_id = target_tokenizer.token_to_id(const.SOS_TOKEN)
-    eos_token_id = target_tokenizer.token_to_id(const.EOS_TOKEN)
+    sos_token_id = target_tokenizer.token_to_id(SpecialToken.SOS)
+    eos_token_id = target_tokenizer.token_to_id(SpecialToken.EOS)
 
     encoder_input = encoder_input.unsqueeze(0).to(device)
     encoder_mask = fun.create_encoder_mask(encoder_input, model.src_pad_token_id, has_batch_dim=True)

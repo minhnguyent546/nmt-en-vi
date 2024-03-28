@@ -14,7 +14,7 @@ from nmt.utils import (
     bleu as bleu_util,
 )
 from nmt.utils.misc import set_seed
-import nmt.constants as const
+from nmt.constants import SpecialToken, Epoch
 
 def test_model(config: dict):
     set_seed(config['seed'])
@@ -38,7 +38,7 @@ def test_model(config: dict):
 
     test_checkpoint = config['test_checkpoint']
     model_weights_path = None
-    if test_checkpoint == const.LATEST:
+    if test_checkpoint == Epoch.LATEST:
         model_weights_path = model_util.get_latest_weights_file_path(config=config)
     else:
         model_weights_path = model_util.get_weights_file_path(f'{test_checkpoint:0>2}', config)
@@ -54,7 +54,7 @@ def test_model(config: dict):
 
     model.load_state_dict(states['model_state_dict'])
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN),
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
                                         label_smoothing=config['label_smoothing'])
 
     test_stats = model_util.evaluate(model, loss_function, test_data_loader)

@@ -17,18 +17,17 @@ from nmt.utils import (
     config as config_util,
 )
 from nmt.utils.misc import set_seed
-import nmt.constants as const
+from nmt.constants import SpecialToken
 
 def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
     tokenizer_path = checkpoints_dir / config['tokenizer_basename'].format(lang)
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
-
-    tokenizer = Tokenizer(WordLevel(unk_token=const.UNK_TOKEN))
+    tokenizer = Tokenizer(WordLevel(unk_token=SpecialToken.UNK))
     tokenizer.pre_tokenizer = Whitespace()
     trainer = WordLevelTrainer(
         min_frequency=min_freq,
-        special_tokens=[const.PAD_TOKEN, const.SOS_TOKEN, const.EOS_TOKEN, const.UNK_TOKEN]
+        special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
     )
     dataset_iter = dataset_util.create_iter_from_dataset(dataset, lang)
     tokenizer.train_from_iterator(dataset_iter, trainer=trainer)
@@ -120,8 +119,8 @@ def preprocess(config: dict):
         config['seq_length']
     )
 
-    assert src_tokenizer.token_to_id(const.PAD_TOKEN) == target_tokenizer.token_to_id(const.PAD_TOKEN)
-    pad_token_id = src_tokenizer.token_to_id(const.PAD_TOKEN)
+    assert src_tokenizer.token_to_id(SpecialToken.PAD) == target_tokenizer.token_to_id(SpecialToken.PAD)
+    pad_token_id = src_tokenizer.token_to_id(SpecialToken.PAD)
     data_collator = dataset_util.CollatorWithPadding(
         pad_token_id,
         added_features=['encoder_input', 'decoder_input', 'labels']

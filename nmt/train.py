@@ -12,7 +12,7 @@ from nmt.utils import (
     config as config_util,
 )
 from nmt.utils.misc import set_seed
-import nmt.constants as const
+from nmt.constants import SpecialToken, Epoch
 
 def train_model(config: dict):
     set_seed(config['seed'])
@@ -59,7 +59,7 @@ def train_model(config: dict):
     preload = config['preload']
     if preload is not None:
         model_filename = None
-        if preload == 'latest':
+        if preload == Epoch.LATEST:
             model_filename = model_util.get_latest_weights_file_path(config=config)
         else:
             model_filename = model_util.get_weights_file_path(f'{preload:0>2}', config=config)
@@ -79,7 +79,7 @@ def train_model(config: dict):
                 lr_scheduler.load_state_dict(states['lr_scheduler_state_dict'])
             global_step = states['global_step']
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(const.PAD_TOKEN),
+    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
                                         label_smoothing=config['label_smoothing'])
 
     num_epochs = config['num_epochs']

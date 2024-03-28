@@ -1,10 +1,14 @@
 
-# special tokens
-SOS_TOKEN = '<SOS>'
-EOS_TOKEN = '<EOS>'
-PAD_TOKEN = '<PAD>'
-UNK_TOKEN = '<UNK>'
+class SpecialToken:
+    SOS = '<SOS>'
+    EOS = '<EOS>'
+    PAD = '<PAD>'
+    UNK = '<UNK>'
 
-# some special constants from config file
-EPOCH = 'epoch'
-LATEST = 'latest'
+class DatasetName:
+    IWSLT2015_EN_VI = 'iwslt2015-en-vi'
+    CLANG8 = 'clang8'
+
+class Epoch:
+    EPOCH = 'epoch'
+    LATEST = 'latest'
