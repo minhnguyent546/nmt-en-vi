@@ -423,6 +423,9 @@ def evaluate(
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
+    # set model back to training mode
+    model.train()
+
     return {
         'eval_loss': eval_loss / len(eval_data_loader),
         'eval_accuracy': eval_acc / len(eval_data_loader),

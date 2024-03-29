@@ -110,4 +110,8 @@ def compute_dataset_bleu(
                    weights=[1 / n_gram] * n_gram)
         for n_gram in range(1, max_n + 1)
     ]
+
+    # set model back to training mode
+    model.train()
+
     return bleu_scores
