@@ -12,6 +12,7 @@ from nmt.utils import (
     config as config_util,
 )
 from nmt.utils.misc import set_seed
+from nmt.trainer import Trainer
 from nmt.constants import SpecialToken, Epoch
 
 def train_model(config: dict):
@@ -54,9 +55,8 @@ def train_model(config: dict):
                                         )
         )
 
-    initial_epoch = 0
-    global_step = 0
     preload = config['preload']
+    preload_states = None
     if preload is not None:
         model_filename = None
         if preload == Epoch.LATEST:
@@ -64,64 +64,64 @@ def train_model(config: dict):
         else:
             model_filename = model_util.get_weights_file_path(f'{preload:0>2}', config=config)
 
-        if model_filename is None:
-            print('No model weights found to preload')
-        else:
-            print(f'Loading weights from previous epoch: {preload:0>2}')
-            states = torch.load(model_filename, map_location=device)
+        if model_filename is not None:
+            print('Load states from previous process')
+            preload_states = torch.load(model_filename)
 
-            # continue from previous completed epoch
-            initial_epoch = states['epoch'] + 1
+    criterion = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
+                                    label_smoothing=config['label_smoothing'])
 
-            model.load_state_dict(states['model_state_dict'])
-            optimizer.load_state_dict(states['optimizer_state_dict'])
-            if lr_scheduler is not None and 'lr_scheduler_state_dict' in states:
-                lr_scheduler.load_state_dict(states['lr_scheduler_state_dict'])
-            global_step = states['global_step']
+    trainer = Trainer(model,
+                      optimizer,
+                      criterion,
+                      src_tokenizer,
+                      target_tokenizer,
+                      config,
+                      writer=writer,
+                      lr_scheduler=lr_scheduler)
+    trainer.train(train_data_loader,
+                  validation_data_loader,
+                  validation_interval=config['validation_interval'],
+                  preload_states=preload_states)
+    # for epoch in range(initial_epoch, num_epochs):
+    #     # clear cuda cache
+    #     torch.cuda.empty_cache()
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
-                                        label_smoothing=config['label_smoothing'])
+    #     train_stats = model_util.train(model, optimizer, loss_function,
+    #                                    train_data_loader, validation_data_loader,
+    #                                    src_tokenizer, target_tokenizer,
+    #                                    epoch, global_step, config,
+    #                                    validation_interval=config['validation_interval'],
+    #                                    writer=writer, lr_scheduler=lr_scheduler)
 
-    num_epochs = config['num_epochs']
-    for epoch in range(initial_epoch, num_epochs):
-        # clear cuda cache
-        torch.cuda.empty_cache()
+    #     for step, stats in train_stats.items():
+    #         writer.add_scalars('loss', {
+    #             'train': stats['train_loss'],
+    #             'val': stats['eval_loss'],
+    #         }, step)
+    #         writer.add_scalars('accuracy', {
+    #             'train': stats['train_accuracy'],
+    #             'val': stats['eval_accuracy'],
+    #         }, step)
+    #         writer.add_scalars('bleu/val_bleu', {
+    #             f'BLEU-{i + 1}': stats['valid_bleu'][i]
+    #             for i in range(4)
+    #         }, step)
 
-        train_stats = model_util.train(model, optimizer, loss_function,
-                                       train_data_loader, validation_data_loader,
-                                       src_tokenizer, target_tokenizer,
-                                       epoch, global_step, config,
-                                       validation_interval=config['validation_interval'],
-                                       writer=writer, lr_scheduler=lr_scheduler)
+    #     global_step += len(train_data_loader)
 
-        for step, stats in train_stats.items():
-            writer.add_scalars('loss', {
-                'train': stats['train_loss'],
-                'val': stats['eval_loss'],
-            }, step)
-            writer.add_scalars('accuracy', {
-                'train': stats['train_accuracy'],
-                'val': stats['eval_accuracy'],
-            }, step)
-            writer.add_scalars('bleu/val_bleu', {
-                f'BLEU-{i + 1}': stats['valid_bleu'][i]
-                for i in range(4)
-            }, step)
+    #     # save the model after every epoch
+    #     model_checkpoint_path = model_util.get_weights_file_path(f'{epoch:02d}', config)
+    #     checkpoint_dict = {
+    #         'epoch': epoch,
+    #         'global_step': global_step,
+    #         'model_state_dict': model.state_dict(),
+    #         'optimizer_state_dict': optimizer.state_dict(),
+    #     }
+    #     if lr_scheduler is not None:
+    #         checkpoint_dict['lr_scheduler_state_dict'] = lr_scheduler.state_dict()
 
-        global_step += len(train_data_loader)
-
-        # save the model after every epoch
-        model_checkpoint_path = model_util.get_weights_file_path(f'{epoch:02d}', config)
-        checkpoint_dict = {
-            'epoch': epoch,
-            'global_step': global_step,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-        }
-        if lr_scheduler is not None:
-            checkpoint_dict['lr_scheduler_state_dict'] = lr_scheduler.state_dict()
-
-        torch.save(checkpoint_dict, model_checkpoint_path)
+    #     torch.save(checkpoint_dict, model_checkpoint_path)
 
 def main():
     parser = argparse.ArgumentParser(description='Train the model')

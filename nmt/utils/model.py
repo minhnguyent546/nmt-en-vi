@@ -274,111 +274,6 @@ def beam_search_decode(
     result_cands = [cand[0].squeeze(0) for cand in cands]
     return result_cands
 
-def train(
-    model: Transformer,
-    optimizer: torch.optim.Optimizer,
-    loss_function,
-    train_data_loader: DataLoader,
-    validation_data_loader: DataLoader,
-    src_tokenizer: Tokenizer,
-    target_tokenizer: Tokenizer,
-    epoch: int,
-    global_step: int,
-    config: dict,
-    validation_interval: int = 2_000,
-    writer: SummaryWriter | None = None,
-    lr_scheduler = None,
-) -> dict[int, dict[str, Any]]:
-    """
-    Args:
-        model (Transformer): model to be trained
-        optimizer (torch.optim.Optimizer): optimizer
-        loss_function: loss function
-        train_data_loader (DataLoader): data loader for training
-        validation_data_loader (DataLoader): data loader for validation
-        src_tokenizer (DataLoader): tokenizer for source sentences
-        target_tokenizer (DataLoader): tokenizer for target sentences
-        epoch (int): current epoch
-        global_step (int): start from this global step
-        config (dict): dictionary of configurations
-        validation_interval (int): run validation every this interval (default: 2000)
-        writer (SummaryWriter): tensorboard writer (default: None)
-        lr_scheduler: learning rate scheduler (default: None)
-
-    Returns:
-        dict[int, dict[str, Any]]: training stats
-    """
-
-    device = model.device
-    num_epochs = config['num_epochs']
-    batch_iterator = tqdm(train_data_loader,
-                          desc=f'Processing epoch {epoch + 1:02d}/{num_epochs:02d}')
-    train_loss = 0.0
-    train_acc = 0.0
-    train_stats = {}
-    iter_count = 0
-
-    # set model in training mode
-    model.train()
-
-    for batch in batch_iterator:
-        encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
-        decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
-
-        decoder_output = model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
-        logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
-        pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
-        labels = batch['labels'].to(device)  # (batch_size, seq_length)
-
-        # calculate the loss
-        # logits: (batch_size * seq_length, target_vocab_size)
-        # label: (batch_size * seq_length)
-        target_vocab_size = logits.size(-1)
-        loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
-
-        # backpropagate the loss
-        loss.backward()
-
-        if config['max_grad_norm'] > 0:
-            # clipping the gradient
-            nn.utils.clip_grad_norm_(model.parameters(), max_norm=config['max_grad_norm'])
-
-        # update weights and learning rate
-        optimizer.step()
-        optimizer.zero_grad()
-        if lr_scheduler is not None:
-            if writer is not None:
-                for group_id, group_lr in enumerate(lr_scheduler.get_last_lr()):
-                    writer.add_scalar(f'learning_rate/group-{group_id}', group_lr, global_step)
-            lr_scheduler.step()
-
-        train_loss += loss.item()
-        train_acc += compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
-        batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
-
-        iter_count += 1
-
-        if writer is not None:
-            writer.add_scalar('loss/train_batch_loss', loss.item(), global_step)
-
-            if (global_step + 1) % validation_interval == 0:
-                valid_stats = evaluate(model, loss_function, validation_data_loader)
-                valid_bleu = compute_dataset_bleu(model,
-                                                  validation_data_loader.dataset,
-                                                  target_tokenizer,
-                                                  config['seq_length'],
-                                                  **config['compute_bleu_kwargs'])
-                train_stats[global_step + 1] = valid_stats
-                train_stats[global_step + 1]['train_loss'] = train_loss / iter_count
-                train_stats[global_step + 1]['train_accuracy'] = train_acc / iter_count
-                train_stats[global_step + 1]['valid_bleu'] = valid_bleu
-
-            writer.flush()
-
-        global_step += 1
-
-    return train_stats
-
 def evaluate(
     model: Transformer,
     loss_function,
@@ -397,8 +292,10 @@ def evaluate(
     device = model.device
     batch_iterator = tqdm(eval_data_loader, desc='Evaluating')
 
-    eval_loss = 0.0
-    eval_acc = 0.0
+    eval_stats = {
+        'loss': 0.0,
+        'acc': 0.0,
+    }
 
     # set model in validation mode
     model.eval()
@@ -418,15 +315,15 @@ def evaluate(
             # label: (batch_size * seq_length)
             target_vocab_size = logits.size(-1)
             loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
-            eval_loss += loss.item()
-            eval_acc += compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
+            eval_stats['loss'] += loss.item()
+            eval_stats['acc'] += compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
     # set model back to training mode
     model.train()
 
-    return {
-        'eval_loss': eval_loss / len(eval_data_loader),
-        'eval_accuracy': eval_acc / len(eval_data_loader),
-    }
+    for metric in eval_stats:
+        eval_stats[metric] /= len(eval_data_loader)
+
+    return eval_stats

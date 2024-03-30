@@ -23,5 +23,5 @@ class ResidualConnection(nn.Module):
         Returns:
             output (Tensor): shape ``(batch_size, seq_length, d_model)``
         """
-        # return x + self.dropout(sublayer(self.norm(x)))
-        return self.norm(x + self.dropout(sublayer(x)))
+        return x + self.dropout(sublayer(self.norm(x)))
+        # return self.norm(x + self.dropout(sublayer(x)))
