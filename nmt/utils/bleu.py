@@ -1,7 +1,7 @@
 from tqdm.autonotebook import tqdm
 
 import torch
-from torchtext.data.metrics import bleu_score
+from nltk.translate.bleu_score import sentence_bleu, corpus_bleu
 
 from tokenizers import Tokenizer
 
@@ -41,6 +41,7 @@ def compute_dataset_bleu(
 
     # set model in evaluation mode
     model.eval()
+    weights = [(1 / n_gram,) * n_gram for n_gram in range(1, max_n + 1)]
 
     with torch.no_grad():
         for data_idx, data in dataset_iterator:
@@ -84,15 +85,10 @@ def compute_dataset_bleu(
             pred_tokens_list.append(pred_tokens)
 
             if log_sentences and data_idx % logging_interval == 0:
-                bleu_scores = [
-                    bleu_score(candidate_corpus=[pred_tokens],
-                               references_corpus=[[target_tokens]],
-                               max_n=n_gram,
-                               weights=[1 / n_gram] * n_gram)
-                    for n_gram in range(1, max_n + 1)
-                ]
+                sentence_bleu_scores = sentence_bleu(hypothesis=pred_tokens,
+                                                     references=[target_tokens],
+                                                     weights=weights)
 
-                # TODO: using write in nested tqdm loop is hard to read
                 dataset_iterator.write(f'Source: {src_text}')
                 dataset_iterator.write(f'Target: {target_text}')
                 if cand_text_list is not None:
@@ -101,17 +97,13 @@ def compute_dataset_bleu(
                 else:
                     dataset_iterator.write(f'Predicted: {pred_text}')
                 for n_gram in range(1, max_n + 1):
-                    dataset_iterator.write(f'BLEU-{n_gram}: {bleu_scores[n_gram - 1]:0.3f}')
+                    dataset_iterator.write(f'BLEU-{n_gram}: {sentence_bleu_scores[n_gram - 1]:0.3f}')
 
-    bleu_scores = [
-        bleu_score(candidate_corpus=pred_tokens_list,
-                   references_corpus=target_tokens_list,
-                   max_n=n_gram,
-                   weights=[1 / n_gram] * n_gram)
-        for n_gram in range(1, max_n + 1)
-    ]
+    corpus_bleu_scores = corpus_bleu(hypotheses=pred_tokens_list,
+                                     list_of_references=target_tokens_list,
+                                     weights=weights)
 
     # set model back to training mode
     model.train()
 
-    return bleu_scores
+    return corpus_bleu_scores
