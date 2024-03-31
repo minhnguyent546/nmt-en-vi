@@ -14,7 +14,6 @@ from tokenizers import Tokenizer
 
 from transformer import Transformer, make_transformer
 import transformer.utils.functional as fun
-from nmt.utils.bleu import compute_dataset_bleu
 from nmt.constants import SpecialToken
 
 def make_model(

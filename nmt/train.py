@@ -31,8 +31,8 @@ def train_model(config: dict):
     validation_data_loader = data_loaders['validation']
 
     print('Loading tokenizers')
-    src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['src_lang'])))
-    target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target_lang'])))
+    src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['source'])))
+    target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target'])))
 
     model = model_util.make_model(src_tokenizer, target_tokenizer, config)
     model.to(device)

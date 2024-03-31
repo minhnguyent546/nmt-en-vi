@@ -111,7 +111,7 @@ class Trainer:
                                                                     self.target_tokenizer,
                                                                     self.config['seq_length'],
                                                                     **self.config['compute_bleu_kwargs'])
-                        self._report_stats(self.global_step, validation_interval, valid_stats, valid_bleu)
+                        self._report_stats(self.global_step + 1, validation_interval, valid_stats, valid_bleu)
                         self._reset_train_stats()
                     self.writer.flush()
 

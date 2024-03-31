@@ -12,3 +12,8 @@ class DatasetName:
 class Epoch:
     EPOCH = 'epoch'
     LATEST = 'latest'
+
+class Config:
+    LOWERCASE = 'lowercase'
+    CONTRACTIONS = 'contractions'
+    VI_WORD_SEGMENTTATION = 'vi_word_segmentation'

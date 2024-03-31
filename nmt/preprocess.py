@@ -19,9 +19,9 @@ from nmt.utils import (
 from nmt.utils.misc import set_seed
 from nmt.constants import SpecialToken
 
-def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> Tokenizer:
+def tokenize(dataset: Dataset, feature: str, config: dict, min_freq: int = 2) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
-    tokenizer_path = checkpoints_dir / config['tokenizer_basename'].format(lang)
+    tokenizer_path = checkpoints_dir / config['tokenizer_basename'].format(feature)
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     tokenizer = Tokenizer(WordLevel(unk_token=SpecialToken.UNK))
     tokenizer.pre_tokenizer = Whitespace()
@@ -29,18 +29,22 @@ def tokenize(dataset: Dataset, lang: str, config: dict, min_freq: int = 2) -> To
         min_frequency=min_freq,
         special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
     )
-    dataset_iter = dataset_util.create_iter_from_dataset(dataset, lang)
+    dataset_iter = (item for item in dataset[feature])
     tokenizer.train_from_iterator(dataset_iter, trainer=trainer)
     tokenizer.save(str(tokenizer_path))
 
     return tokenizer
 
-def _load_datasets(config: dict) -> DatasetDict | Dataset:
+def _load_datasets(config: dict) -> DatasetDict:
+    """
+    Each dataset in the dataset dict should have two features: ``config['source']`` and ``config['target']``,
+    """
     raw_datasets: DatasetDict = load_dataset(
         path=config['dataset_path'],
         name=config['dataset_name'],
+        data_files=config['data_files'],
         cache_dir=config['dataset_cache_dir'],
-        **config['dataset_other_options']
+        **config['dataset_config_kwags'],
     )
 
     # creating validation set from train set
@@ -65,57 +69,52 @@ def preprocess(config: dict):
     set_seed(config['seed'])
     raw_datasets = _load_datasets(config)
     num_rows = raw_datasets.num_rows
-    raw_datasets = dataset_util.process_dataset_sentences(raw_datasets,
-                                                          langs=[config['src_lang'], config['target_lang']],
-                                                          vi_config=config,
-                                                          batched=True)
+    raw_datasets = dataset_util.process_dataset_sentences(raw_datasets, config)
 
-    print(pd.DataFrame(raw_datasets['train']['translation'][:5]))
-    print(pd.DataFrame(raw_datasets['validation']['translation'][:5]))
-    print(pd.DataFrame(raw_datasets['test']['translation'][:5]))
+    print(pd.DataFrame(raw_datasets['train'][:5]))
+    print(pd.DataFrame(raw_datasets['validation'][:5]))
+    print(pd.DataFrame(raw_datasets['test'][:5]))
 
     print('Building tokenizers from train dataset')
-    src_tokenizer = tokenize(raw_datasets['train'], config['src_lang'], config)
-    target_tokenizer = tokenize(raw_datasets['train'], config['target_lang'], config)
+    src_tokenizer = tokenize(raw_datasets['train'], config['source'], config)
+    target_tokenizer = tokenize(raw_datasets['train'], config['target'], config)
     print('Size of source vocabulary:', src_tokenizer.get_vocab_size())
     print('Size of target vocabulary:', target_tokenizer.get_vocab_size())
 
-    print('Removing invalid sentences')
+    print('Removing invalid pairs')
     num_reserved_tokens = 2  # for SOS and EOS tokens
-    raw_datasets = dataset_util.remove_invalid_sentences(raw_datasets,
-                                                         src_tokenizer,
-                                                         target_tokenizer,
-                                                         config['seq_length'] - num_reserved_tokens,
-                                                         config['src_lang'],
-                                                         config['target_lang'],
-                                                         batched=True)
+    raw_datasets = dataset_util.remove_invalid_pairs(raw_datasets,
+                                                     src_tokenizer,
+                                                     target_tokenizer,
+                                                     config['seq_length'] - num_reserved_tokens,
+                                                     config)
 
     for dataset, num_row in raw_datasets.num_rows.items():
         if dataset in num_rows:
-            print(f'Removed {num_rows[dataset] - num_row} sentences from {dataset}')
+            print(f'Removed {num_rows[dataset] - num_row} pairs from {dataset} dataset')
 
     train_dataset = BilingualDataset(
         raw_datasets['train'],
         src_tokenizer,
         target_tokenizer,
-        config['src_lang'],
-        config['target_lang'],
+        config['source'],
+        config['target'],
         config['seq_length']
     )
     validation_dataset = BilingualDataset(
         raw_datasets['validation'],
         src_tokenizer,
         target_tokenizer,
-        config['src_lang'],
-        config['target_lang'],
+        config['source'],
+        config['target'],
         config['seq_length']
     )
     test_dataset = BilingualDataset(
         raw_datasets['test'],
         src_tokenizer,
         target_tokenizer,
-        config['src_lang'],
-        config['target_lang'],
+        config['source'],
+        config['target'],
         config['seq_length']
     )
 
@@ -131,6 +130,7 @@ def preprocess(config: dict):
                                         collate_fn=data_collator)
     test_data_loader = DataLoader(test_dataset, batch_size=config['eval_batch_size'],
                                   collate_fn=data_collator)
+
     data_loaders = {
         'train': train_data_loader,
         'validation': validation_data_loader,

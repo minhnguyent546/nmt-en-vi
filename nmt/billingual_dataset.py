@@ -12,8 +12,8 @@ class BilingualDataset(Dataset):
         dataset,
         src_tokenizer: Tokenizer,
         target_tokenizer: Tokenizer,
-        src_lang: str,
-        target_lang: str,
+        source: str,
+        target: str,
         seq_length: int,
         add_padding_tokens: bool = False,
     ):
@@ -21,8 +21,8 @@ class BilingualDataset(Dataset):
         self.dataset = dataset
         self.src_tokenizer = src_tokenizer
         self.target_tokenizer = target_tokenizer
-        self.src_lang = src_lang
-        self.target_lang = target_lang
+        self.source = source
+        self.target = target
         self.seq_length = seq_length
         self.add_padding_tokens = add_padding_tokens
 
@@ -38,8 +38,8 @@ class BilingualDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        src_text = self.dataset[index]['translation'][self.src_lang]
-        target_text = self.dataset[index]['translation'][self.target_lang]
+        src_text = self.dataset[index][self.source]
+        target_text = self.dataset[index][self.target]
 
         encode_input_tokens = self.src_tokenizer.encode(src_text).ids
         decode_input_tokens = self.target_tokenizer.encode(target_text).ids

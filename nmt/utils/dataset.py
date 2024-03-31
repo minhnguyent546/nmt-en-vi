@@ -4,131 +4,84 @@ from typing import Any
 
 from torch.nn.utils.rnn import pad_sequence
 
-from datasets import Dataset, DatasetDict
+from datasets import DatasetDict
 from tokenizers import Tokenizer
 
 import underthesea
-import contractions  # NOTE: this lib is not work well in some cases!
+import contractions  # NOTE: this lib does not work well in some cases!
+from nmt.utils.misc import is_enabled
+from nmt.constants import Config
 
-def create_iter_from_dataset(dataset, lang: str):
-    for item in dataset:
-        yield item['translation'][lang]
-
-def _process_en_sentence(sentence: str) -> str:
-    sentence = sentence.strip().lower()
+def process_sentence(sentence: str, config: dict) -> str:
+    # default actions
+    sentence = sentence.strip()
     sentence = re.sub(r" (&[a-zA-Z]+;)", r"\1", sentence)
     sentence = html.unescape(sentence)
-    sentence = contractions.fix(sentence)
-    return sentence
 
-def _process_vi_sentence(sentence: str, vi_config: dict) -> str:
-    sentence = sentence.strip().lower()
-    sentence = html.unescape(sentence)
-    if 'vi_word_segmentation' in vi_config and vi_config['vi_word_segmentation']:
+    if is_enabled(config, Config.LOWERCASE):
+        sentence = sentence.lower()
+    if is_enabled(config, Config.CONTRACTIONS):
+        sentence = contractions.fix(sentence)
+    if is_enabled(config, Config.VI_WORD_SEGMENTTATION):
         sentence = underthesea.word_tokenize(sentence, format='text')
+
     return sentence
 
-def _process_en_sentences(examples):
-    if isinstance(examples['translation'], list):
-        # when batched=True
-        return {
-            'translation': [
-                {k: v if k != 'en' else _process_en_sentence(v) for k, v in item.items()}
-                for item in examples['translation']
-            ]
-        }
-    else:
-        return {
-            'translation': {k: v if k != 'en' else _process_en_sentence(v) for k, v in examples['translation'].items()}
-        }
-
-def _process_vi_sentences(examples, vi_config: dict):
-    if isinstance(examples['translation'], list):
-        # when batched=True
-        return {
-            'translation': [
-                {k: v if k != 'vi' else _process_vi_sentence(v, vi_config) for k, v in item.items()}
-                for item in examples['translation']
-            ]
-        }
-    else:
-        return {
-            'translation': {k: v if k != 'vi' else _process_vi_sentence(v, vi_config) for k, v in examples['translation'].items()}
-        }
-
-def _process_sentences_by_lang(
-    dataset: Dataset | DatasetDict,
-    lang: str,
-    vi_config: dict,
-    **kwargs,
-) -> Dataset | DatasetDict:
-    if lang == 'vi':
-        return dataset.map(lambda item: _process_vi_sentences(item, vi_config), **kwargs)
-    elif lang == 'en':
-        return dataset.map(_process_en_sentences, **kwargs)
-    else:
-        raise ValueError(f'Unsupported language: {lang}')
+def process_feature(dataset: DatasetDict, feature: str, config: dict) -> DatasetDict:
+    dataset = dataset.map(lambda examples: {
+        feature: [
+            process_sentence(sentence, config)
+            for sentence in examples[feature]
+        ]
+    }, batched=True)
+    return dataset
 
 def process_dataset_sentences(
-    dataset: Dataset | DatasetDict,
-    langs: str | list[str],
-    vi_config: dict = {},
-    **kwargs,
-) -> Dataset | DatasetDict:
-    if isinstance(langs, str):
-        langs = [langs]
-
-    for lang in langs:
-        print(f'Processing {lang} sentences')
-        dataset = _process_sentences_by_lang(dataset, lang, vi_config, **kwargs)
+    dataset: DatasetDict,
+    config: dict,
+) -> DatasetDict:
+    for feature in ['source', 'target']:
+        for split in dataset:
+            if config[feature] not in dataset[split].features:
+                break
+        else:
+            dataset = process_feature(dataset, config[feature], config['preprocess'][feature])
 
     return dataset
 
 def _check_valid_pairs(
-    examples,
+    examples: dict[str, list],
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
     max_seq_length: int,
-    src_lang: str,
-    target_lang: str,
-) -> bool | list[bool]:
-    if isinstance(examples['translation'], list):
-        is_valid = [True] * len(examples['translation'])
+    config: dict,
+) -> list[bool]:
+    if len(examples[config['source']]) != len(examples[config['target']]):
+        raise ValueError('The number of source and target examples must be equal')
 
-        for i, item in enumerate(examples['translation']):
-            src_tokens_len = len(src_tokenizer.encode(item[src_lang]).ids)
-            target_tokens_len = len(target_tokenizer.encode(item[target_lang]).ids)
+    valid_row = [True] * len(examples[config['source']])
+    for row_id, (source, target) in enumerate(zip(examples[config['source']], examples[config['target']])):
+        src_tokens_len = len(src_tokenizer.encode(source).ids)
+        target_tokens_len = len(target_tokenizer.encode(target).ids)
+        valid_row[row_id] = min(src_tokens_len, target_tokens_len) > 0 and \
+                        max(src_tokens_len, target_tokens_len) <= max_seq_length
 
-            is_valid[i] = min(src_tokens_len, target_tokens_len) > 0 and \
-                          max(src_tokens_len, target_tokens_len) <= max_seq_length
-        return is_valid
-    else:
-        src_tokens_len = len(src_tokenizer.encode(examples['translation'][src_lang]).ids)
-        target_tokens_len = len(target_tokenizer.encode(examples['translation'][target_lang]).ids)
+    return valid_row
 
-        return min(src_tokens_len, target_tokens_len) > 0 and \
-               max(src_tokens_len, target_tokens_len) <= max_seq_length
-
-def remove_invalid_sentences(
-    dataset: Dataset | DatasetDict,
+def remove_invalid_pairs(
+    dataset: DatasetDict,
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
     max_seq_length: int,
-    src_lang: str,
-    target_lang: str,
-    **kwargs,
-) -> Dataset | DatasetDict:
-    return dataset.filter(
-        lambda examples: _check_valid_pairs(
-            examples,
-            src_tokenizer,
-            target_tokenizer,
-            max_seq_length,
-            src_lang,
-            target_lang,
-        ),
-        **kwargs,
-    )
+    config: dict,
+) -> DatasetDict:
+    return dataset.filter(lambda examples: _check_valid_pairs(
+        examples,
+        src_tokenizer,
+        target_tokenizer,
+        max_seq_length,
+        config,
+    ), batched=True)
 
 class CollatorWithPadding:
     def __init__(self, padding_value: int, added_features: list[str] = []) -> None:

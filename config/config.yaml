@@ -5,8 +5,6 @@ data_loaders_basename: data_loaders.pt
 model_dir: weights
 model_basename: transformer
 experiment_name: runs/nmt
-src_lang: en
-target_lang: vi
 seed: 0x3f3f3f3f
 
 # model
@@ -21,43 +19,56 @@ attention_dropout_rate: 0.2
 optim: adam
 betas:
   - 0.9
-  - 0.98
-eps: 1.0e-9
-weight_decay: 5.0e-5
+  - 0.999
+eps: 1.0e-8
+weight_decay: 0
 learning_rate: 0.5 # change lr to small value (e.g. 1e-4) if lr scheduler is disabled
-enable_lr_scheduler: True
+enable_lr_scheduler: true
 warmup_steps: 4000
 label_smoothing: 0.1
 max_grad_norm: 1.0
 
 # dataset
-dataset_path: mt_eng_vietnamese
-dataset_name: iwslt2015-en-vi
+dataset_path: json
+dataset_name: null
+data_files:
+  train: /path/to/train/file
+  test: /path/to/test/file
+  validation: /path/to/validation/file
+source: source # name of the source feature
+target: target # name of the target feature
 dataset_cache_dir: datasets
-dataset_other_options: {}
-vi_word_segmentation: True
+dataset_config_kwags:
+  field: data
 val_size_rate: null # a rate for creating custom validation set from training set
 max_set_size:
   train: 500_000
   test: 2_000
   validation: 2_000
+preprocess:
+  source:
+    lowercase: true
+    contractions: true
+  target:
+    lowercase: true
+    vi_word_segmentation: true
 
 # training
 preload: latest # 'latest' or epoch number
 num_epochs: 10
-train_batch_size: 64
-eval_batch_size: 64
-seq_length: 100
+train_batch_size: 32
+eval_batch_size: 32
+seq_length: 120
 
 # testing
 test_checkpoint: latest # 'latest' or epoch number
 
 # evaluation
-validation_interval: 2_000
+validation_interval: 3_000
 compute_bleu_kwargs:
   teacher_forcing: false
   beam_size: 4
   beam_return_topk: 3
-  log_sentences: False
-  logging_interval: 100
-  max_steps: 500
+  log_sentences: true
+  logging_interval: 30
+  max_steps: 300

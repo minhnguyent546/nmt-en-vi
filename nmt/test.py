@@ -30,8 +30,8 @@ def test_model(config: dict):
     test_data_loader = data_loaders['test']
 
     print('Loading tokenizers')
-    src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['src_lang'])))
-    target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target_lang'])))
+    src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['source'])))
+    target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target'])))
 
     model = model_util.make_model(src_tokenizer, target_tokenizer, config)
     model.to(device)
@@ -54,16 +54,16 @@ def test_model(config: dict):
 
     model.load_state_dict(states['model_state_dict'])
 
-    loss_function = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
-                                        label_smoothing=config['label_smoothing'])
+    criterion = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
+                                    label_smoothing=config['label_smoothing'])
 
-    test_stats = model_util.evaluate(model, loss_function, test_data_loader)
+    test_stats = model_util.evaluate(model, criterion, test_data_loader)
     test_bleu = bleu_util.compute_dataset_bleu(model, test_data_loader.dataset,
-                                              target_tokenizer, config['seq_length'],
-                                              **config['compute_bleu_kwargs'], )
+                                               target_tokenizer, config['seq_length'],
+                                               **config['compute_bleu_kwargs'], )
     print(pd.DataFrame({
-        'test_loss': [test_stats['eval_loss']],
-        'test_accuracy': [test_stats['eval_accuracy']],
+        'test_loss': [test_stats['loss']],
+        'test_accuracy': [test_stats['acc']],
         'val_bleu-1': [test_bleu[0]],
         'val_bleu-2': [test_bleu[1]],
         'val_bleu-3': [test_bleu[2]],
