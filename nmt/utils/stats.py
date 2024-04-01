@@ -31,6 +31,9 @@ class Stats:
             raise ValueError("pad_token_id must be provided if ignore_padding is True")
         self.pad_token_id = pad_token_id
 
+        self.num_matches = 0
+        self.num_totals = 0
+
     def update_step(
         self,
         loss: float,
@@ -40,10 +43,14 @@ class Stats:
         self.loss += loss
         self.num_batchs += 1
 
+
         if isinstance(y_pred, Tensor):
             y_pred = y_pred.cpu().detach().numpy()
         if isinstance(y_true, Tensor):
             y_true = y_true.cpu().detach().numpy()
+
+        self.num_matches += ((y_pred == y_true) & (y_pred != self.pad_token_id)).sum().item()
+        self.num_totals += (y_true != self.pad_token_id).sum().item()
 
         y_pred = y_pred.ravel()
         y_true = y_true.ravel()
@@ -52,8 +59,11 @@ class Stats:
             y_pred = y_pred[y_true != self.pad_token_id]
             y_true = y_true[y_true != self.pad_token_id]
 
+        assert y_pred.shape == y_true.shape
+
         self.pred.append(y_pred)
         self.labels.append(y_true)
+
 
     def compute(self) -> dict[str, float]:
         y_pred = np.concatenate(self.pred)
@@ -67,6 +77,10 @@ class Stats:
             beta=self.f_score_beta,
             average=self.average
         )
+        print(f"{acc = }")
+        print(f"{self.num_matches = }")
+        print(f"{self.num_totals = }")
+        print(f"{self.num_matches / self.num_totals = }")
 
         return {
             'loss': loss,
