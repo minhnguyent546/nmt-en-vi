@@ -4,9 +4,7 @@ from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import (
     accuracy_score,
-    precision_score,
-    recall_score,
-    fbeta_score,
+    precision_recall_fscore_support,
 )
 
 class Stats:
@@ -63,9 +61,12 @@ class Stats:
 
         loss = self.loss / self.num_batchs
         acc = accuracy_score(y_true, y_pred)  # this calculation does not take into account the padding tokens
-        precision = precision_score(y_true, y_pred, average=self.average)
-        recall = recall_score(y_true, y_pred, average=self.average)
-        f_beta = fbeta_score(y_true, y_pred, beta=self.f_score_beta, average=self.average)
+        precision, recall, f_beta, _ = precision_recall_fscore_support(
+            y_true,
+            y_pred,
+            beta=self.f_score_beta,
+            average=self.average
+        )
 
         return {
             'loss': loss,
