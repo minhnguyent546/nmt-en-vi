@@ -60,10 +60,16 @@ def test_model(config: dict):
     test_stats = model_util.evaluate(model, criterion, test_data_loader)
     test_bleu = bleu_util.compute_dataset_bleu(model, test_data_loader.dataset,
                                                target_tokenizer, config['seq_length'],
-                                               **config['compute_bleu_kwargs'], )
+                                               **config['compute_bleu_kwargs'])
+
+    metric_scores = test_stats.compute()
+
     print(pd.DataFrame({
-        'test_loss': [test_stats['loss']],
-        'test_accuracy': [test_stats['acc']],
+        'test_loss': [metric_scores['loss']],
+        'test_accuracy': [metric_scores['acc']],
+        'test_precision': [metric_scores['precision']],
+        'test_recall': [metric_scores['recall']],
+        'test_f_beta': [metric_scores['f_beta']],
         'val_bleu-1': [test_bleu[0]],
         'val_bleu-2': [test_bleu[1]],
         'val_bleu-3': [test_bleu[2]],

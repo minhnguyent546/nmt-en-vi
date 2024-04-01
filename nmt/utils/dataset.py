@@ -15,12 +15,13 @@ from nmt.constants import Config
 def process_sentence(sentence: str, config: dict) -> str:
     # default actions
     sentence = sentence.strip()
-    sentence = re.sub(r" (&[a-zA-Z]+;)", r"\1", sentence)
+    sentence = re.sub(r'\s(&[a-zA-Z]+;)', r'\1', sentence)
     sentence = html.unescape(sentence)
 
     if is_enabled(config, Config.LOWERCASE):
         sentence = sentence.lower()
     if is_enabled(config, Config.CONTRACTIONS):
+        sentence = re.sub(r"\s('[\w\d]+)", r'\1', sentence)
         sentence = contractions.fix(sentence)
     if is_enabled(config, Config.VI_WORD_SEGMENTTATION):
         sentence = underthesea.word_tokenize(sentence, format='text')
@@ -64,7 +65,7 @@ def _check_valid_pairs(
         src_tokens_len = len(src_tokenizer.encode(source).ids)
         target_tokens_len = len(target_tokenizer.encode(target).ids)
         valid_row[row_id] = min(src_tokens_len, target_tokens_len) > 0 and \
-                        max(src_tokens_len, target_tokens_len) <= max_seq_length
+                            max(src_tokens_len, target_tokens_len) <= max_seq_length
 
     return valid_row
 

@@ -13,6 +13,7 @@ from nmt.utils import (
     model as model_util,
     bleu as bleu_util,
 )
+from nmt.utils import stats
 
 
 class Trainer:
@@ -37,10 +38,7 @@ class Trainer:
         self.config = config
         self.initial_epoch = 0
         self.global_step = 0
-        self.train_stats = {
-            'loss': 0.0,
-            'acc': 0.0,
-        }
+        self.train_stats = stats.Stats()
         self.writer = writer
         self.lr_scheduler = lr_scheduler
 
@@ -97,8 +95,7 @@ class Trainer:
                             self.writer.add_scalar(f'learning_rate/group-{group_id}', group_lr, self.global_step)
                     self.lr_scheduler.step()
 
-                self.train_stats['loss'] += loss.item()
-                self.train_stats['acc'] += model_util.compute_accuracy(pred, labels, pad_token_id=self.model.target_pad_token_id)
+                self.train_stats.update_step(loss.item(), pred.view(-1), labels.view(-1))
                 batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
                 if self.writer is not None:
@@ -111,8 +108,8 @@ class Trainer:
                                                                     self.target_tokenizer,
                                                                     self.config['seq_length'],
                                                                     **self.config['compute_bleu_kwargs'])
-                        self._report_stats(self.global_step + 1, validation_interval, valid_stats, valid_bleu)
-                        self._reset_train_stats()
+                        self._report_stats(self.global_step + 1, valid_stats, valid_bleu)
+
                     self.writer.flush()
 
                 self.global_step += 1
@@ -131,29 +128,22 @@ class Trainer:
     def _report_stats(
         self,
         step: int,
-        interval: int,
-        valid_stats: dict,
-        valid_bleu: list[float],
+        valid_stats: stats.Stats,
+        valid_bleu: list[float] | None = None,
     ) -> None:
         if self.writer is None:
             return
 
-        self.writer.add_scalars('loss', {
-            'train': self.train_stats['loss'] / interval,
-            'valid': valid_stats['loss'],
-        }, step)
-        self.writer.add_scalars('accuracy', {
-            'train': self.train_stats['acc'] / interval,
-            'valid': valid_stats['acc'],
-        }, step)
-        self.writer.add_scalars('valid_bleu', {
-            f'BLEU-{i + 1}': valid_bleu[i]
-            for i in range(4)
-        }, step)
+        self.train_stats.report_to_tensorboard(self.writer, name='train', step=step)
+        valid_stats.report_to_tensorboard(self.writer, name='valid', step=step)
 
-    def _reset_train_stats(self):
-        self.train_stats['loss'] = 0.0
-        self.train_stats['acc'] = 0.0
+        if valid_bleu is not None:
+            self.writer.add_scalars('valid_bleu', {
+                f'BLEU-{i + 1}': valid_bleu[i]
+                for i in range(4)
+            }, step)
+
+        self.train_stats = stats.Stats()
 
     def _save_checkpoint(self, epoch: int) -> None:
         model_checkpoint_path = model_util.get_weights_file_path(f'{epoch:02d}', self.config)

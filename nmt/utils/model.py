@@ -3,7 +3,6 @@ from tqdm.autonotebook import tqdm
 from typing import Any
 
 import torch
-import torch.nn as nn
 from torch import optim
 import torch.nn.functional as Fun
 from torch import Tensor
@@ -15,6 +14,7 @@ from tokenizers import Tokenizer
 from transformer import Transformer, make_transformer
 import transformer.utils.functional as fun
 from nmt.constants import SpecialToken
+from nmt.utils import stats
 
 def make_model(
     src_tokenizer: Tokenizer,
@@ -275,26 +275,23 @@ def beam_search_decode(
 
 def evaluate(
     model: Transformer,
-    loss_function,
+    criterion,
     eval_data_loader: DataLoader,
-) -> dict[str, Any]:
+) -> stats.Stats:
     """
     Args:
         model (Transformer): model to be evaluated
-        loss_function: loss function
+        criterion: loss function
         eval_data_loader (DataLoader): data loader for evaluation
 
     Returns:
-        dict[str, Any]: evaluation stats
+        Stats: evaluation stats
     """
 
     device = model.device
     batch_iterator = tqdm(eval_data_loader, desc='Evaluating')
 
-    eval_stats = {
-        'loss': 0.0,
-        'acc': 0.0,
-    }
+    eval_stats = stats.Stats()
 
     # set model in validation mode
     model.eval()
@@ -313,16 +310,12 @@ def evaluate(
             # logits: (batch_size * seq_length, target_vocab_size)
             # label: (batch_size * seq_length)
             target_vocab_size = logits.size(-1)
-            loss = loss_function(logits.view(-1, target_vocab_size), labels.view(-1))
-            eval_stats['loss'] += loss.item()
-            eval_stats['acc'] += compute_accuracy(pred, labels, pad_token_id=model.target_pad_token_id)
+            loss = criterion(logits.view(-1, target_vocab_size), labels.view(-1))
+            eval_stats.update_step(loss.item(), pred.view(-1), labels.view(-1))
 
             batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
     # set model back to training mode
     model.train()
-
-    for metric in eval_stats:
-        eval_stats[metric] /= len(eval_data_loader)
 
     return eval_stats
