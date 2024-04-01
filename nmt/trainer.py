@@ -38,7 +38,7 @@ class Trainer:
         self.config = config
         self.initial_epoch = 0
         self.global_step = 0
-        self.train_stats = stats.Stats()
+        self.train_stats = stats.Stats(pad_token_id=model.target_pad_token_id, ignore_padding=True)
         self.writer = writer
         self.lr_scheduler = lr_scheduler
 
@@ -55,7 +55,6 @@ class Trainer:
 
         # set model in training mode
         self.model.train()
-
         num_epochs = self.config['num_epochs']
         for epoch in range(self.initial_epoch, num_epochs):
             # clear cuda cache

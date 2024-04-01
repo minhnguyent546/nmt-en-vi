@@ -1,6 +1,5 @@
 import numpy as np
 
-from tensorboard.compat.tensorflow_stub import Summary
 from torch import Tensor
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import (
@@ -19,6 +18,8 @@ class Stats:
         labels: list[np.ndarray] = [],
         f_score_beta: float = 0.5,
         average='weighted',
+        pad_token_id: int | None = None,
+        ignore_padding: bool = False,
     ) -> None:
         self.num_batchs = num_batchs
         self.loss = loss
@@ -26,6 +27,11 @@ class Stats:
         self.labels = labels
         self.f_score_beta = f_score_beta
         self.average = average
+
+        self.ignore_padding = ignore_padding
+        if ignore_padding == True and pad_token_id is None:
+            raise ValueError("pad_token_id must be provided if ignore_padding is True")
+        self.pad_token_id = pad_token_id
 
     def update_step(
         self,
@@ -43,6 +49,11 @@ class Stats:
 
         y_pred = y_pred.ravel()
         y_true = y_true.ravel()
+
+        if self.ignore_padding:
+            y_pred = y_pred[y_true != self.pad_token_id]
+            y_true = y_true[y_true != self.pad_token_id]
+
         self.pred.append(y_pred)
         self.labels.append(y_true)
 

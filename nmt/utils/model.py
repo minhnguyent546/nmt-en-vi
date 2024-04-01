@@ -287,11 +287,10 @@ def evaluate(
     Returns:
         Stats: evaluation stats
     """
-
     device = model.device
     batch_iterator = tqdm(eval_data_loader, desc='Evaluating')
 
-    eval_stats = stats.Stats()
+    eval_stats = stats.Stats(pad_token_id=model.target_pad_token_id, ignore_padding=True)
 
     # set model in validation mode
     model.eval()
