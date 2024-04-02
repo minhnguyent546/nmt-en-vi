@@ -38,7 +38,7 @@ class Trainer:
         self.config = config
         self.initial_epoch = 0
         self.global_step = 0
-        self.train_stats = stats.Stats(pad_token_id=model.target_pad_token_id, ignore_padding=True)
+        self.train_stats = stats.Stats(ignore_padding=True, pad_token_id=self.model.target_pad_token_id)
         self.writer = writer
         self.lr_scheduler = lr_scheduler
 
@@ -143,7 +143,7 @@ class Trainer:
             }, step)
 
         # reset train statistics after reporting
-        self.train_stats = stats.Stats()
+        self.train_stats = stats.Stats(ignore_padding=True, pad_token_id=self.model.target_pad_token_id)
 
     def _save_checkpoint(self, epoch: int) -> None:
         model_checkpoint_path = model_util.get_weights_file_path(f'{epoch:02d}', self.config)

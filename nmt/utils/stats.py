@@ -19,6 +19,7 @@ class Stats:
         pad_token_id: int | None = None,
         ignore_padding: bool = False,
     ) -> None:
+
         self.num_batchs = num_batchs
         self.loss = loss
         self.pred = pred if pred is not None else []
@@ -30,9 +31,6 @@ class Stats:
         if ignore_padding == True and pad_token_id is None:
             raise ValueError("pad_token_id must be provided if ignore_padding is True")
         self.pad_token_id = pad_token_id
-
-        self.num_matches = 0
-        self.num_totals = 0
 
     def update_step(
         self,
