@@ -142,6 +142,7 @@ class Trainer:
                 for i in range(4)
             }, step)
 
+        # reset train statistics after reporting
         self.train_stats = stats.Stats()
 
     def _save_checkpoint(self, epoch: int) -> None:

@@ -12,8 +12,8 @@ class Stats:
         self,
         num_batchs: int = 0,
         loss: float = 0.0,
-        pred: list[np.ndarray] = [],
-        labels: list[np.ndarray] = [],
+        pred: list[np.ndarray] | None = None,
+        labels: list[np.ndarray] | None = None,
         f_score_beta: float = 0.5,
         average='weighted',
         pad_token_id: int | None = None,
@@ -21,8 +21,8 @@ class Stats:
     ) -> None:
         self.num_batchs = num_batchs
         self.loss = loss
-        self.pred = pred
-        self.labels = labels
+        self.pred = pred if pred is not None else []
+        self.labels = labels if labels is not None else []
         self.f_score_beta = f_score_beta
         self.average = average
 
@@ -43,14 +43,10 @@ class Stats:
         self.loss += loss
         self.num_batchs += 1
 
-
         if isinstance(y_pred, Tensor):
             y_pred = y_pred.cpu().detach().numpy()
         if isinstance(y_true, Tensor):
             y_true = y_true.cpu().detach().numpy()
-
-        self.num_matches += ((y_pred == y_true) & (y_pred != self.pad_token_id)).sum().item()
-        self.num_totals += (y_true != self.pad_token_id).sum().item()
 
         y_pred = y_pred.ravel()
         y_true = y_true.ravel()
@@ -59,11 +55,8 @@ class Stats:
             y_pred = y_pred[y_true != self.pad_token_id]
             y_true = y_true[y_true != self.pad_token_id]
 
-        assert y_pred.shape == y_true.shape
-
         self.pred.append(y_pred)
         self.labels.append(y_true)
-
 
     def compute(self) -> dict[str, float]:
         y_pred = np.concatenate(self.pred)
@@ -75,13 +68,9 @@ class Stats:
             y_true,
             y_pred,
             beta=self.f_score_beta,
-            average=self.average
+            average=self.average,
+            zero_division=0.0,
         )
-        print(f"{acc = }")
-        print(f"{self.num_matches = }")
-        print(f"{self.num_totals = }")
-        print(f"{self.num_matches / self.num_totals = }")
-
         return {
             'loss': loss,
             'acc': acc,
