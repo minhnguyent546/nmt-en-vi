@@ -81,6 +81,29 @@ def get_latest_weights_file_path(config: dict) -> str | None:
 
     return None
 
+def count_saved_checkpoints(config: dict) -> int:
+    model_dir = Path(config['checkpoints_dir']) / config['model_dir']
+    model_basename = config['model_basename']
+    saved_files = model_dir.glob(f'{model_basename}_*.pt')
+    num_saved_checkpoints = len(list(saved_files))
+    return num_saved_checkpoints
+
+def ensure_num_saved_checkpoints(config: dict) -> None:
+    save_checkpoints_limit = config['saved_checkpoints_limit']
+    num_saved_checkpoints = count_saved_checkpoints(config)
+    if num_saved_checkpoints < save_checkpoints_limit:
+        return
+
+    model_dir = Path(config['checkpoints_dir']) / config['model_dir']
+    model_basename = config['model_basename']
+    saved_files = model_dir.glob(f'{model_basename}_*.pt')
+    saved_files = sorted(saved_files, reverse=True)
+
+    assert num_saved_checkpoints == len(saved_files)
+
+    for saved_file in saved_files[save_checkpoints_limit:]:
+        saved_file.unlink()
+
 def noam_decay(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
     """
     As described in https://arxiv.org/pdf/1706.03762.pdf

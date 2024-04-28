@@ -1,5 +1,6 @@
 # general options
 checkpoints_dir: checkpoints
+saved_checkpoints_limit: 6
 tokenizer_basename: tokenizer_{}.json
 data_loaders_basename: data_loaders.pt
 model_dir: weights

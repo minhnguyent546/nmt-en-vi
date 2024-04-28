@@ -158,4 +158,5 @@ class Trainer:
         if self.lr_scheduler is not None:
             checkpoint_dict['lr_scheduler_state_dict'] = self.lr_scheduler.state_dict()
 
+        model_util.ensure_num_saved_checkpoints(self.config)
         torch.save(checkpoint_dict, model_checkpoint_path)
