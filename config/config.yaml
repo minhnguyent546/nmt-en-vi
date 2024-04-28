@@ -41,6 +41,8 @@ target: target # name of the target feature
 dataset_cache_dir: datasets
 dataset_config_kwags:
   field: data
+source_vocab_size: 32_000
+target_vocab_size: 32_000
 val_size_rate: null # a rate for creating custom validation set from training set
 max_set_size:
   train: 500_000

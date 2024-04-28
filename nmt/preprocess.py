@@ -25,7 +25,9 @@ def tokenize(dataset: Dataset, feature: str, config: dict, min_freq: int = 2) ->
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
     tokenizer = Tokenizer(WordLevel(unk_token=SpecialToken.UNK))
     tokenizer.pre_tokenizer = Whitespace()
+    vocab_size = config['source_vocab_size'] if feature == config['source'] else config['target_vocab_size']
     trainer = WordLevelTrainer(
+        vocab_size=vocab_size,
         min_frequency=min_freq,
         special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
     )
@@ -78,6 +80,7 @@ def preprocess(config: dict):
     print('Building tokenizers from train dataset')
     src_tokenizer = tokenize(raw_datasets['train'], config['source'], config)
     target_tokenizer = tokenize(raw_datasets['train'], config['target'], config)
+
     print('Size of source vocabulary:', src_tokenizer.get_vocab_size())
     print('Size of target vocabulary:', target_tokenizer.get_vocab_size())
 
