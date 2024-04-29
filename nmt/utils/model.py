@@ -101,7 +101,7 @@ def ensure_num_saved_checkpoints(config: dict) -> None:
 
     assert num_saved_checkpoints == len(saved_files)
 
-    for saved_file in saved_files[save_checkpoints_limit:]:
+    for saved_file in saved_files[save_checkpoints_limit - 1:]:
         saved_file.unlink()
 
 def noam_decay(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
