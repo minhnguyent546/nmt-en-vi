@@ -1,6 +1,5 @@
 from pathlib import Path
 from tqdm.autonotebook import tqdm
-from typing import Any
 
 import torch
 from torch import optim

@@ -2,22 +2,19 @@ from pathlib import Path
 import argparse
 import pandas as pd
 
-import torch
-from torch.utils.data import DataLoader
-
 from datasets import load_dataset, Dataset, DatasetDict
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
 
-from nmt.billingual_dataset import BilingualDataset
 from nmt.utils import (
     dataset as dataset_util,
     config as config_util,
 )
 from nmt.utils.misc import set_seed
 from nmt.constants import SpecialToken
+
 
 def tokenize(dataset: Dataset, feature: str, config: dict, min_freq: int = 2) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
@@ -45,7 +42,6 @@ def _load_datasets(config: dict) -> DatasetDict:
         path=config['dataset_path'],
         name=config['dataset_name'],
         data_files=config['data_files'],
-        cache_dir=config['dataset_cache_dir'],
         **config['dataset_config_kwags'],
     )
 
@@ -96,53 +92,8 @@ def preprocess(config: dict):
         if dataset in num_rows:
             print(f'Removed {num_rows[dataset] - num_row} pairs from {dataset} dataset')
 
-    train_dataset = BilingualDataset(
-        raw_datasets['train'],
-        src_tokenizer,
-        target_tokenizer,
-        config['source'],
-        config['target'],
-        config['seq_length']
-    )
-    validation_dataset = BilingualDataset(
-        raw_datasets['validation'],
-        src_tokenizer,
-        target_tokenizer,
-        config['source'],
-        config['target'],
-        config['seq_length']
-    )
-    test_dataset = BilingualDataset(
-        raw_datasets['test'],
-        src_tokenizer,
-        target_tokenizer,
-        config['source'],
-        config['target'],
-        config['seq_length']
-    )
-
-    assert src_tokenizer.token_to_id(SpecialToken.PAD) == target_tokenizer.token_to_id(SpecialToken.PAD)
-    pad_token_id = src_tokenizer.token_to_id(SpecialToken.PAD)
-    data_collator = dataset_util.CollatorWithPadding(
-        pad_token_id,
-        added_features=['encoder_input', 'decoder_input', 'labels']
-    )
-    train_data_loader = DataLoader(train_dataset, batch_size=config['train_batch_size'],
-                                   shuffle=True, collate_fn=data_collator)
-    validation_data_loader = DataLoader(validation_dataset, batch_size=config['eval_batch_size'],
-                                        collate_fn=data_collator)
-    test_data_loader = DataLoader(test_dataset, batch_size=config['eval_batch_size'],
-                                  collate_fn=data_collator)
-
-    data_loaders = {
-        'train': train_data_loader,
-        'validation': validation_data_loader,
-        'test': test_data_loader,
-    }
-    checkpoints_dir = Path(config['checkpoints_dir'])
-    data_loaders_path = checkpoints_dir / config['data_loaders_basename']
-    checkpoints_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(data_loaders, data_loaders_path)
+    raw_datasets.save_to_disk(config['dataset_save_path'])
+    print(f'Saved dataset to {config["dataset_save_path"]}')
 
 def main():
     parser = argparse.ArgumentParser(description='Preprocess the dataset')

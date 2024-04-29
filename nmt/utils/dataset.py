@@ -3,14 +3,47 @@ import re
 from typing import Any
 
 from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader
 
-from datasets import DatasetDict
+from datasets import Dataset, DatasetDict
 from tokenizers import Tokenizer
 
 import underthesea
 import contractions  # NOTE: this lib does not work well in some cases!
+
+from nmt.billingual_dataset import BilingualDataset
 from nmt.utils.misc import is_enabled
-from nmt.constants import Config
+from nmt.constants import Config, SpecialToken
+
+
+def make_data_loader(
+    dataset: Dataset,
+    src_tokenizer: Tokenizer,
+    target_tokenizer: Tokenizer,
+    *,
+    batch_size: int,
+    shuffle: bool = True,
+    config: dict,
+) -> DataLoader:
+    bilingual_dataset = BilingualDataset(
+        dataset,
+        src_tokenizer,
+        target_tokenizer,
+        config['source'],
+        config['target'],
+        config['seq_length'],
+    )
+
+    assert src_tokenizer.token_to_id(SpecialToken.PAD) == target_tokenizer.token_to_id(SpecialToken.PAD)
+    pad_token_id = src_tokenizer.token_to_id(SpecialToken.PAD)
+    data_collator = CollatorWithPadding(
+        pad_token_id,
+        added_features=['encoder_input', 'decoder_input', 'labels']
+    )
+    data_loader = DataLoader(bilingual_dataset, batch_size=batch_size,
+                                   shuffle=shuffle, collate_fn=data_collator)
+
+    return data_loader
 
 def process_sentence(sentence: str, config: dict) -> str:
     # default actions

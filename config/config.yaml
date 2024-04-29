@@ -2,7 +2,6 @@
 checkpoints_dir: checkpoints
 saved_checkpoints_limit: 6
 tokenizer_basename: tokenizer_{}.json
-data_loaders_basename: data_loaders.pt
 model_dir: weights
 model_basename: transformer
 experiment_name: runs/nmt
@@ -36,11 +35,11 @@ data_files:
   train: /path/to/train/file
   test: /path/to/test/file
   validation: /path/to/validation/file
-source: source # name of the source feature
-target: target # name of the target feature
-dataset_cache_dir: datasets
+dataset_save_path: /datasets/DATASET_NAME
 dataset_config_kwags:
   field: data
+source: source # name of the source feature
+target: target # name of the target feature
 source_vocab_size: 32_000
 target_vocab_size: 32_000
 val_size_rate: null # a rate for creating custom validation set from training set

@@ -6,12 +6,14 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from datasets import load_from_disk, DatasetDict
 from tokenizers import Tokenizer
 
 from nmt.utils import (
     model as model_util,
     config as config_util,
     bleu as bleu_util,
+    dataset as dataset_util,
 )
 from nmt.utils.misc import set_seed
 from nmt.constants import SpecialToken, Epoch
@@ -25,13 +27,18 @@ def test_model(config: dict):
     model_dir = checkpoints_dir / config['model_dir']
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    print('Loading data loaders')
-    data_loaders = torch.load(checkpoints_dir / config['data_loaders_basename'])
-    test_data_loader = data_loaders['test']
-
     print('Loading tokenizers')
     src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['source'])))
     target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target'])))
+
+    print('Creating data loader')
+    saved_dataset: DatasetDict = load_from_disk(config['dataset_save_path'])
+    test_data_loader = dataset_util.make_data_loader(saved_dataset['test'],
+                                                     src_tokenizer,
+                                                     target_tokenizer,
+                                                     batch_size=config['eval_batch_size'],
+                                                     shuffle=False,
+                                                     config=config)
 
     model = model_util.make_model(src_tokenizer, target_tokenizer, config)
     model.to(device)
