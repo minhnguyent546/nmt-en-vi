@@ -207,7 +207,7 @@ def greedy_search_decode(
 
 def length_penalty(length: int, alpha: float = 0.6) -> float:
     """
-    As formula described in We at al. (2016)
+    As formula described in Wu et al. (2016)
     """
     return (5 + length) ** alpha / (5 + 1) ** alpha
 
