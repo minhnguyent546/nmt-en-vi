@@ -1,0 +1,17 @@
+model_path: ./_test_translate/transformer-nmt-base/transformer_nmt_base_09.pt
+src_tokenizer: ./_test_translate/transformer-nmt-base/tokenizer_source.json
+target_tokenizer: ./_test_translate/transformer-nmt-base/tokenizer_target.json
+
+d_model: 512
+num_layers: 6
+num_heads: 8
+d_ffn: 2048
+
+seq_length: 120
+beam_size: 4
+beam_return_topk: 3
+preprocess:
+  lowercase: true
+  contractions: true
+postprocess:
+  remove_underscores: true

@@ -18,7 +18,7 @@ from nmt.utils import stats
 def make_model(
     src_tokenizer: Tokenizer,
     target_tokenizer: Tokenizer,
-    config: dict
+    config: dict,
 ) -> Transformer:
     src_vocab_size = src_tokenizer.get_vocab_size()
     target_vocab_size = target_tokenizer.get_vocab_size()
@@ -32,12 +32,12 @@ def make_model(
         src_pad_token_id,
         target_pad_token_id,
         device='auto',
-        d_model=config['d_model'],
-        num_heads=config['num_heads'],
-        num_layers=config['num_layers'],
-        d_ffn=config['d_ffn'],
-        dropout_rate=config['dropout_rate'],
-        attention_dropout_rate=config['attention_dropout_rate'],
+        d_model=config.get('d_model', 512),
+        num_heads=config.get('num_heads', 8),
+        num_layers=config.get('num_layers', 6),
+        d_ffn=config.get('d_ffn', 2048),
+        dropout_rate=config.get('dropout_rate', 0.1),
+        attention_dropout_rate=config.get('attention_dropout_rate', 0.1),
     )
     return model
 

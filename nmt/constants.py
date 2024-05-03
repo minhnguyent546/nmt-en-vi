@@ -17,3 +17,4 @@ class Config:
     LOWERCASE = 'lowercase'
     CONTRACTIONS = 'contractions'
     VI_WORD_SEGMENTTATION = 'vi_word_segmentation'
+    REMOVE_UNDERSCORES = 'remove_underscores'
