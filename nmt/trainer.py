@@ -42,6 +42,10 @@ class Trainer:
         self.writer = writer
         self.lr_scheduler = lr_scheduler
 
+        self.scaler = None
+        if self.device.type == 'cuda' and self.config['fp16']:
+            self.scaler = torch.cuda.amp.GradScaler()
+
     def train(
         self,
         train_data_loader: DataLoader,
@@ -55,6 +59,9 @@ class Trainer:
 
         # set model in training mode
         self.model.train()
+
+        autocast_type = torch.float16 if self._fp16 else torch.float32
+
         num_epochs = self.config['num_epochs']
         for epoch in range(self.initial_epoch, num_epochs):
             # clear cuda cache
@@ -66,28 +73,40 @@ class Trainer:
                 encoder_input = batch['encoder_input'].to(self.device)  # (batch_size, seq_length)
                 decoder_input = batch['decoder_input'].to(self.device)  # (batch_size, seq_length)
 
-                decoder_output = self.model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
-                logits = self.model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
-                pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
-                labels = batch['labels'].to(self.device)  # (batch_size, seq_length)
+                self.optimizer.zero_grad()
 
-                # calculate the loss
-                # logits: (batch_size * seq_length, target_vocab_size)
-                # label: (batch_size * seq_length)
-                target_vocab_size = logits.size(-1)
-                loss = self.criterion(logits.view(-1, target_vocab_size), labels.view(-1))
+                with torch.cuda.amp.autocast(dtype=autocast_type):
+                    decoder_output = self.model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
+                    logits = self.model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+                    pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
+                    labels = batch['labels'].to(self.device)  # (batch_size, seq_length)
+
+                    # calculate the loss
+                    # logits: (batch_size * seq_length, target_vocab_size)
+                    # label: (batch_size * seq_length)
+                    target_vocab_size = logits.size(-1)
+                    loss = self.criterion(logits.view(-1, target_vocab_size), labels.view(-1))
 
                 # backpropagate the loss
-                loss.backward()
+                if self._fp16:
+                    self.scaler.scale(loss).backward()
+                else:
+                    loss.backward()
 
                 if self.config['max_grad_norm'] > 0:
                     # clipping the gradient
+                    if self._fp16:
+                        self.scaler.unscale_(self.optimizer)
                     nn.utils.clip_grad_norm_(self.model.parameters(),
                                              max_norm=self.config['max_grad_norm'])
 
                 # update weights and learning rate
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+                if self._fp16:
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    self.optimizer.step()
+
                 if self.lr_scheduler is not None:
                     if self.writer is not None:
                         for group_id, group_lr in enumerate(self.lr_scheduler.get_last_lr()):
@@ -114,6 +133,10 @@ class Trainer:
                 self.global_step += 1
 
             self._save_checkpoint(epoch)
+
+    @property
+    def _fp16(self) -> bool:
+        return self.scaler is not None
 
     def _load_from_states(self, states) -> None:
         self.initial_epoch = states['epoch'] + 1

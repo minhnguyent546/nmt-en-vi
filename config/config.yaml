@@ -58,6 +58,7 @@ preprocess:
 # training
 preload: latest # 'latest' or epoch number
 num_epochs: 10
+fp16: true # whenever to use mixed precision during training
 train_batch_size: 32
 eval_batch_size: 32
 seq_length: 120

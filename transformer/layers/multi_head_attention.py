@@ -1,5 +1,6 @@
 import math
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as Fun
 from torch import Tensor
@@ -89,7 +90,7 @@ def scaled_dot_product(
     # attention_probs: (batch_size, num_heads, q_length, k_length)
     attention_probs = (q @ k.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
-        attention_probs.masked_fill_(mask == False, -1e9)
+        attention_probs.masked_fill_(mask == False, float('-inf'))
 
     attention_probs = Fun.softmax(attention_probs, dim=-1)
     if dropout is not None:
