@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from .encoder import EncoderLayer, Encoder
-from .decoder import DecoderLayer, Decoder
-from ..embedding import Embeddings, PositionalEncoding
-from ..utils import functional as fun
+from transformer.model.encoder import EncoderLayer, Encoder
+from transformer.model.decoder import DecoderLayer, Decoder
+from transformer.embedding import Embeddings, PositionalEncoding
+from transformer.utils import functional as fun
 
 class Transformer(nn.Module):
     def __init__(

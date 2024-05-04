@@ -1,6 +1,6 @@
-from .decoder import Decoder
-from .encoder import Encoder
-from .transformer import Transformer, make_transformer
+from transformer.model.decoder import Decoder
+from transformer.model.encoder import Encoder
+from transformer.model.transformer import Transformer, make_transformer
 
 __all__ = [
     'Decoder',

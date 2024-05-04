@@ -1,13 +1,13 @@
 import torch.nn as nn
 from torch import Tensor
 
-from ..layers import (
+from transformer.layers import (
     MultiHeadAttention,
     ResidualConnection,
     PositionWiseFeedForward,
     LayerNormalization,
 )
-from ..utils.functional import get_clones
+from transformer.utils.functional import get_clones
 
 class DecoderLayer(nn.Module):
     def __init__(
