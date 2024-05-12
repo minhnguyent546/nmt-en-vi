@@ -14,7 +14,7 @@ from nmt.utils import (
     model as model_util,
     misc as misc_util,
 )
-from nmt.constants import SpecialToken
+from nmt.constants import SpecialToken, LOWER_ONE_EIGHTH_BLOCK
 
 def compute_dataset_bleu(
     model: Transformer,
@@ -31,7 +31,6 @@ def compute_dataset_bleu(
 ) -> float:
 
     device = model.device
-    src_text_list = []
     target_text_list = []
     pred_text_list = []
 
@@ -84,7 +83,7 @@ def compute_dataset_bleu(
                     # remove <SOS> and <EOS> tokens if they are present
                     cand = misc_util.remove_end_tokens(cand, target_tokenizer, contains_id=True)
 
-                    cand_text_list.append(target_tokenizer.decode(cand, skip_special_tokens=False))
+                    cand_text_list.append(target_tokenizer.decode(cand))
             pred_token_ids = misc_util.remove_end_tokens(pred_token_ids, target_tokenizer, contains_id=True)
 
             # retrieve src_tokens and target_tokens
@@ -109,12 +108,14 @@ def compute_dataset_bleu(
             if isinstance(pred_token_ids, Tensor):
                 pred_token_ids = pred_token_ids.detach().cpu().numpy()
 
-            src_text = src_tokenizer.decode(src_token_ids, skip_special_tokens=False)
-            target_text = target_tokenizer.decode(target_token_ids, skip_special_tokens=False)
-            pred_text = target_tokenizer.decode(pred_token_ids, skip_special_tokens=False)
+            # tokenizer.decode method will remove special tokens by default (e.g. <UNK>)
+            # it should be, because keep <UNK> tokens will increase the BLEU score
+            # but has no meaning. See Post, 2018
+            src_text = src_tokenizer.decode(src_token_ids)
+            target_text = target_tokenizer.decode(target_token_ids).replace('_', LOWER_ONE_EIGHTH_BLOCK)
+            pred_text = target_tokenizer.decode(pred_token_ids).replace('_', LOWER_ONE_EIGHTH_BLOCK)
 
-            src_text_list.append(src_text)
-            target_text_list.append([target_text])
+            target_text_list.append(target_text)
             pred_text_list.append(pred_text)
 
             if log_sentences and data_idx % logging_interval == 0:
