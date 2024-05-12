@@ -128,7 +128,8 @@ def compute_dataset_bleu(
                         dataset_iterator.write(f'Predicted-{cand_text_idx + 1}: {cand_text}')
                 else:
                     dataset_iterator.write(f'Predicted: {" ".join(pred_text)}')
-                    dataset_iterator.write(f'BLEU: {bleu_score["score"]:0.3f}')
+
+                dataset_iterator.write(f'BLEU: {bleu_score["score"]:0.3f}')
 
     dataset_blue_score = sacrebleu.compute(
         predictions=pred_text_list,
