@@ -1,6 +1,7 @@
 import html
 import re
 from typing import Any
+from pathlib import Path
 
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
@@ -44,6 +45,17 @@ def make_data_loader(
                              shuffle=shuffle, collate_fn=data_collator, pin_memory=True)
 
     return data_loader
+
+def load_trained_tokenizers(config: dict) -> tuple[Tokenizer, Tokenizer]:
+    checkpoints_dir = Path(config['checkpoints_dir'])
+    if config['share_vocab']:
+        src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format('combined')))
+        target_tokenizer = src_tokenizer
+    else:
+        src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['source'])))
+        target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target'])))
+
+    return src_tokenizer, target_tokenizer
 
 def process_sentence(sentence: str, config: dict) -> str:
     # default actions

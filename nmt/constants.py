@@ -4,6 +4,11 @@ class SpecialToken:
     EOS = '<EOS>'
     PAD = '<PAD>'
     UNK = '<UNK>'
+    BPE_SUFFIX = '##'
+
+class TokenizerModel:
+    BPE = 'bpe'
+    WORD_LEVEL = 'word_level'
 
 class DatasetName:
     IWSLT2015_EN_VI = 'iwslt2015-en-vi'

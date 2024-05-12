@@ -1,12 +1,10 @@
 import argparse
-from pathlib import Path
 
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
 from datasets import load_from_disk, DatasetDict
-from tokenizers import Tokenizer
 
 from nmt.utils import (
     model as model_util,
@@ -24,13 +22,8 @@ def train_model(config: dict):
     print(f'Using device {device}')
     device = torch.device(device)
 
-    checkpoints_dir = Path(config['checkpoints_dir'])
-    model_dir = checkpoints_dir / config['model_dir']
-    model_dir.mkdir(parents=True, exist_ok=True)
-
     print('Loading tokenizers')
-    src_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['source'])))
-    target_tokenizer = Tokenizer.from_file(str(checkpoints_dir / config['tokenizer_basename'].format(config['target'])))
+    src_tokenizer, target_tokenizer = dataset_util.load_trained_tokenizers(config)
 
     print('Creating data loaders')
     saved_dataset: DatasetDict = load_from_disk(config['dataset_save_path'])
