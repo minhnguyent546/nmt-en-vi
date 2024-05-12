@@ -78,10 +78,7 @@ def test_model(config: dict):
         'test_precision': [metric_scores['precision']],
         'test_recall': [metric_scores['recall']],
         'test_f_beta': [metric_scores['f_beta']],
-        'val_bleu-1': [test_bleu[0]],
-        'val_bleu-2': [test_bleu[1]],
-        'val_bleu-3': [test_bleu[2]],
-        'val_bleu-4': [test_bleu[3]],
+        'test_blue': [test_bleu],
     }).to_string(index=False))
 
 def main():

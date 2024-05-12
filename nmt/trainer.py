@@ -152,7 +152,7 @@ class Trainer:
         self,
         step: int,
         valid_stats: stats.Stats,
-        valid_bleu: list[float] | None = None,
+        valid_bleu: float | None = None,
     ) -> None:
         if self.writer is None:
             return
@@ -161,10 +161,7 @@ class Trainer:
         valid_stats.report_to_tensorboard(self.writer, name='valid', step=step)
 
         if valid_bleu is not None:
-            self.writer.add_scalars('valid_bleu', {
-                f'BLEU-{i + 1}': valid_bleu[i]
-                for i in range(4)
-            }, step)
+            self.writer.add_scalar('valid_BLEU', valid_bleu, step)
 
         # reset train statistics after reporting
         self.train_stats = stats.Stats(ignore_padding=True, pad_token_id=self.model.target_pad_token_id)
