@@ -1,6 +1,7 @@
 import sys
 import argparse
 import pandas as pd
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -20,6 +21,10 @@ def test_model(config: dict):
     set_seed(config['seed'])
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
+
+    checkpoints_dir = Path(config['checkpoints_dir'])
+    model_dir = checkpoints_dir / config['model_dir']
+    model_dir.mkdir(parents=True, exist_ok=True)
 
     print('Loading tokenizers')
     src_tokenizer, target_tokenizer = dataset_util.load_trained_tokenizers(config)
