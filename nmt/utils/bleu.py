@@ -69,13 +69,6 @@ def compute_dataset_bleu(
                 # decoding with beam search
                 cand_list = model_util.beam_search_decode(model, device, beam_size, encoder_input,
                                                           target_tokenizer, seq_length, return_topk=beam_return_topk)
-                pred_token_ids = cand_list[0]
-            else:
-                # decoding with greedy search
-                pred_token_ids = model_util.greedy_search_decode(model, device, encoder_input,
-                                                                 target_tokenizer, seq_length)
-
-            if cand_list is not None:
                 cand_text_list = []
                 for cand in cand_list:
                     cand = cand.detach().cpu().numpy()
@@ -83,7 +76,15 @@ def compute_dataset_bleu(
                     # remove <SOS> and <EOS> tokens if they are present
                     cand = misc_util.remove_end_tokens(cand, target_tokenizer, contains_id=True)
 
-                    cand_text_list.append(target_tokenizer.decode(cand))
+                    cand_text = target_tokenizer.decode(cand).replace('_', LOWER_ONE_EIGHTH_BLOCK)
+                    cand_text_list.append(cand_text)
+
+                pred_token_ids = cand_list[0]
+            else:
+                # decoding with greedy search
+                pred_token_ids = model_util.greedy_search_decode(model, device, encoder_input,
+                                                                 target_tokenizer, seq_length)
+
             pred_token_ids = misc_util.remove_end_tokens(pred_token_ids, target_tokenizer, contains_id=True)
 
             # retrieve src_tokens and target_tokens
