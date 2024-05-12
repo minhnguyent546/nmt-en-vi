@@ -1,6 +1,7 @@
 from tqdm.autonotebook import tqdm
 
 import torch
+from torch import Tensor
 # from torchtext.data.metrics import bleu_score
 
 from tokenizers import Tokenizer
@@ -103,8 +104,10 @@ def compute_dataset_bleu(
 
             # note that `src_tokens`, `target_tokens`, and `pred_tokens`
             # contains no end tokens (i.e. <SOS> and <EOS>)
-            src_token_ids = encoder_input[1:encoder_input_eos_index.item()]
-            target_token_ids = labels[:labels_eos_index.item()]
+            src_token_ids = encoder_input[1:encoder_input_eos_index.item()].detach().cpu().numpy()
+            target_token_ids = labels[:labels_eos_index.item()].detach().cpu().numpy()
+            if isinstance(pred_token_ids, Tensor):
+                pred_token_ids = pred_token_ids.detach().cpu().numpy()
 
             src_text = src_tokenizer.decode(src_token_ids, skip_special_tokens=False)
             target_text = target_tokenizer.decode(target_token_ids, skip_special_tokens=False)
