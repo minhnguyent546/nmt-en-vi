@@ -66,7 +66,8 @@ def test_model(config: dict):
 
     test_stats = model_util.evaluate(model, criterion, test_data_loader)
     test_bleu = bleu_util.compute_dataset_bleu(model, test_data_loader.dataset,
-                                               target_tokenizer, config['seq_length'],
+                                               src_tokenizer, target_tokenizer,
+                                               config['seq_length'],
                                                **config['compute_bleu_kwargs'])
 
     metric_scores = test_stats.compute()

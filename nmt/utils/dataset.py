@@ -41,7 +41,7 @@ def make_data_loader(
         added_features=['encoder_input', 'decoder_input', 'labels']
     )
     data_loader = DataLoader(bilingual_dataset, batch_size=batch_size,
-                                   shuffle=shuffle, collate_fn=data_collator)
+                             shuffle=shuffle, collate_fn=data_collator, pin_memory=True)
 
     return data_loader
 

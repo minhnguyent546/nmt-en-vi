@@ -75,8 +75,6 @@ class BilingualDataset(Dataset):
             assert labels.size(0) == self.seq_length
 
         return {
-            'src_text': src_text,
-            'target_text': target_text,
             'encoder_input': encoder_input,
             'decoder_input': decoder_input,
             'labels': labels,

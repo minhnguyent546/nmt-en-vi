@@ -123,6 +123,7 @@ class Trainer:
                         valid_stats = model_util.evaluate(self.model, self.criterion, validation_data_loader)
                         valid_bleu = bleu_util.compute_dataset_bleu(self.model,
                                                                     validation_data_loader.dataset,
+                                                                    self.src_tokenizer,
                                                                     self.target_tokenizer,
                                                                     self.config['seq_length'],
                                                                     **self.config['compute_bleu_kwargs'])
