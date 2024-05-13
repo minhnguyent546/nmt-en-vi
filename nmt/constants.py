@@ -5,10 +5,12 @@ class SpecialToken:
     PAD = '<PAD>'
     UNK = '<UNK>'
     BPE_SUFFIX = '##'
+    WORD_PIECE_PREFIX = '##'
 
 class TokenizerModel:
-    BPE = 'bpe'
     WORD_LEVEL = 'word_level'
+    BPE = 'bpe'
+    WORD_PIECE = 'word_piece'
 
 class DatasetName:
     IWSLT2015_EN_VI = 'iwslt2015-en-vi'

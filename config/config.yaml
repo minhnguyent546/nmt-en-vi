@@ -40,8 +40,8 @@ dataset_config_kwags:
   field: data
 source: source # name of the source feature
 target: target # name of the target feature
-tokenizer_model: bpe # possible values: word_level, bpe
-share_vocab: false # whenever to share vocab between source and target sentences
+tokenizer_model: bpe # possible values: word_level, bpe, word_piece
+share_vocab: false # whether to share vocab between source and target sentences
 source_vocab_size: 32_000 # `source_vocab_size` will be used over `target_vocab_size` when `share_vocab` is enabled
 target_vocab_size: 32_000
 val_size_rate: null # a rate for creating custom validation set from training set
@@ -60,7 +60,7 @@ preprocess:
 # training
 preload: latest # 'latest' or epoch number
 num_epochs: 10
-fp16: true # whenever to use mixed precision during training
+fp16: true # whether to use mixed precision during training
 train_batch_size: 32
 eval_batch_size: 32
 seq_length: 120

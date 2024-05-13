@@ -1,7 +1,7 @@
 from pathlib import Path
 import argparse
 import pandas as pd
-from typing import Generator
+from typing import Generator, Literal
 
 from datasets import load_dataset, DatasetDict
 import tokenizers
@@ -20,40 +20,85 @@ from nmt.utils.misc import set_seed
 from nmt.constants import SpecialToken, TokenizerModel
 
 
+def get_tokenizer_trainer(
+    tokenizer_model: str,
+    *,
+    vocab_size: int = 30_000,
+    min_freq: int | Literal['default'] = 'default',
+    show_progress: bool = True,
+) -> tuple[Tokenizer, tokenizers.trainers.Trainer]:
+    tokenizer_model = tokenizer_model.lower()
+
+    if min_freq  == 'default':
+        min_freq_mapping = {
+            TokenizerModel.WORD_LEVEL: 2,
+            TokenizerModel.BPE: 1,
+            TokenizerModel.WORD_PIECE: 1,
+        }
+        min_freq = min_freq_mapping.get(tokenizer_model, 1)
+    all_special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
+    if tokenizer_model == TokenizerModel.WORD_LEVEL:
+        tokenizer = Tokenizer(tokenizers.models.WordLevel(unk_token=SpecialToken.UNK))  # pyright: ignore[reportCallIssue]
+        tokenizer.pre_tokenizer = Whitespace()
+
+        trainer = tokenizers.trainers.WordLevelTrainer(
+            vocab_size=vocab_size,
+            min_frequency=min_freq,
+            show_progress=show_progress,
+            special_tokens=all_special_tokens,
+        )
+    elif tokenizer_model == TokenizerModel.BPE:
+        tokenizer = Tokenizer(tokenizers.models.BPE(unk_token=SpecialToken.UNK))
+        tokenizer.pre_tokenizer = Whitespace()
+        tokenizer.decoder = tokenizers.decoders.BPEDecoder(suffix=SpecialToken.BPE_SUFFIX)
+
+        trainer = tokenizers.trainers.BpeTrainer(
+            vocab_size=vocab_size,
+            min_frequency=min_freq,
+            show_progress=show_progress,
+            special_tokens=all_special_tokens,
+            end_of_word_suffix=SpecialToken.BPE_SUFFIX,
+        )
+    elif tokenizer_model == TokenizerModel.WORD_PIECE:
+        tokenizer = Tokenizer(tokenizers.models.WordPiece(
+            unk_token=SpecialToken.UNK,
+            max_input_chars_per_word=100,
+        ))  # pyright: ignore[reportCallIssue]
+        tokenizer.pre_tokenizer = Whitespace()
+        tokenizer.decoder = tokenizers.decoders.WordPiece(
+            prefix=SpecialToken.WORD_PIECE_PREFIX,
+            cleanup=False,
+        )
+
+        trainer = tokenizers.trainers.WordPieceTrainer(
+            vocab_size=vocab_size,
+            min_frequency=min_freq,
+            show_progress=show_progress,
+            special_tokens=all_special_tokens,
+            continuing_subword_prefix=SpecialToken.WORD_PIECE_PREFIX,
+        )
+    else:
+        raise ValueError(f'Unsupported tokenizer model "{tokenizer_model}". Possible values are word_level, bpe, and word_piece')
+
+    return tokenizer, trainer
+
 def tokenize(
     data_iter: Generator[str, None, None],
     feature: str,
     config: dict,
     *,
     vocab_size: int = 30_000,
-    min_freq: int = 2,
+    min_freq: int | Literal['default'] = 'default',
 ) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
     tokenizer_path = checkpoints_dir / config['tokenizer_basename'].format(feature)
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-    if config['tokenizer_model'] == TokenizerModel.WORD_LEVEL:
-        tokenizer = Tokenizer(tokenizers.models.WordLevel(unk_token=SpecialToken.UNK))
-        tokenizer.pre_tokenizer = Whitespace()
-        trainer = tokenizers.trainers.WordLevelTrainer(
-            vocab_size=vocab_size,
-            min_frequency=min_freq,
-            show_process=True,
-            special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
-        )
-    elif config['tokenizer_model'] == TokenizerModel.BPE:
-        tokenizer = Tokenizer(tokenizers.models.BPE(unk_token=SpecialToken.UNK))
-        tokenizer.pre_tokenizer = Whitespace()
-        tokenizer.decoder = tokenizers.decoders.BPEDecoder(suffix=SpecialToken.BPE_SUFFIX)
-        trainer = tokenizers.trainers.BpeTrainer(
-            vocab_size=vocab_size,
-            min_frequency=1,
-            show_process=True,
-            special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK],
-            end_of_word_suffix=SpecialToken.BPE_SUFFIX,
-        )
-    else:
-        raise ValueError(f'Invalid tokenizer model "{config["tokenizer_model"]}". Possible values are {TokenizerModel.WORD_LEVEL}, {TokenizerModel.BPE}.')
+    tokenizer, trainer = get_tokenizer_trainer(
+        config['tokenizer_model'],
+        vocab_size=vocab_size,
+        min_freq=min_freq,
+    )
 
     tokenizer.train_from_iterator(data_iter, trainer=trainer)
     tokenizer.save(str(tokenizer_path))
