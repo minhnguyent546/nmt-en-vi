@@ -13,24 +13,27 @@ from nmt.utils import (
     dataset as dataset_util,
 )
 from nmt.utils.misc import set_seed
+from nmt.utils.logging import init_logger, logger
 from nmt.trainer import Trainer
 from nmt.constants import SpecialToken, Epoch
 
 
 def train_model(config: dict):
     set_seed(config['seed'])
+    init_logger()
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f'Using device {device}')
+    logger.info('Using device %s', device)
     device = torch.device(device)
 
     checkpoints_dir = Path(config['checkpoints_dir'])
     model_dir = checkpoints_dir / config['model_dir']
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    print('Loading tokenizers')
+    logger.info('Loading tokenizers')
     src_tokenizer, target_tokenizer = dataset_util.load_trained_tokenizers(config)
 
-    print('Creating data loaders')
+    logger.info('Creating data loaders')
     saved_dataset: DatasetDict = load_from_disk(config['dataset_save_path'])
     train_data_loader = dataset_util.make_data_loader(saved_dataset['train'],
                                                       src_tokenizer,
@@ -76,7 +79,7 @@ def train_model(config: dict):
             model_filename = model_util.get_weights_file_path(f'{preload:0>2}', config=config)
 
         if model_filename is not None:
-            print('Load states from previous process')
+            logger.info('Load states from previous process')
             preload_states = torch.load(model_filename)
 
     criterion = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),

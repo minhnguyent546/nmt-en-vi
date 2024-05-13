@@ -17,6 +17,7 @@ from nmt.utils import (
     misc as misc_util,
 )
 from nmt.utils.misc import set_seed
+from nmt.utils.logging import init_logger, logger
 from nmt.constants import SpecialToken, TokenizerModel
 
 
@@ -29,14 +30,14 @@ def get_tokenizer_trainer(
 ) -> tuple[Tokenizer, tokenizers.trainers.Trainer]:
     tokenizer_model = tokenizer_model.lower()
 
-    if min_freq  == 'default':
+    if min_freq == 'default':
         min_freq_mapping = {
             TokenizerModel.WORD_LEVEL: 2,
             TokenizerModel.BPE: 1,
             TokenizerModel.WORD_PIECE: 1,
         }
         min_freq = min_freq_mapping.get(tokenizer_model, 1)
-    all_special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
+    all_special_tokens = [SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
     if tokenizer_model == TokenizerModel.WORD_LEVEL:
         tokenizer = Tokenizer(tokenizers.models.WordLevel(unk_token=SpecialToken.UNK))  # pyright: ignore[reportCallIssue]
         tokenizer.pre_tokenizer = Whitespace()
@@ -136,15 +137,17 @@ def _load_datasets(config: dict) -> DatasetDict:
 
 def preprocess(config: dict):
     set_seed(config['seed'])
+    init_logger()
+
     raw_datasets = _load_datasets(config)
     num_rows = raw_datasets.num_rows
     raw_datasets = dataset_util.process_dataset_sentences(raw_datasets, config)
 
     for split_name in ['train', 'validation', 'test']:
         if split_name in raw_datasets:
-            print(pd.DataFrame(raw_datasets[split_name][:5]))
+            logger.info(pd.DataFrame(raw_datasets[split_name][:5]))
 
-    print('Building tokenizers from train dataset')
+    logger.info('Building tokenizers from train dataset')
     if config['share_vocab']:
         data_iter = misc_util.combined_iterator(
             raw_datasets['train'][config['source']],
@@ -152,16 +155,16 @@ def preprocess(config: dict):
         )
         src_tokenizer = tokenize(data_iter, 'combined', config, vocab_size=config['source_vocab_size'])
         target_tokenizer = src_tokenizer
-        print('Size of vocabulary:', src_tokenizer.get_vocab_size())
+        logger.info('Size of vocabulary: %d', src_tokenizer.get_vocab_size())
     else:
         src_data_iter = (item for item in raw_datasets['train'][config['source']])
         target_data_iter = (item for item in raw_datasets['train'][config['target']])
         src_tokenizer = tokenize(src_data_iter, config['source'], config, vocab_size=config['source_vocab_size'])
         target_tokenizer = tokenize(target_data_iter, config['target'], config, vocab_size=config['target_vocab_size'])
-        print('Size of src vocabulary:', src_tokenizer.get_vocab_size())
-        print('Size of target vocabulary:', target_tokenizer.get_vocab_size())
+        logger.info('Size of src vocabulary: %d', src_tokenizer.get_vocab_size())
+        logger.info('Size of target vocabulary: %d', target_tokenizer.get_vocab_size())
 
-    print('Removing invalid pairs')
+    logger.info('Removing invalid pairs')
     num_reserved_tokens = 2  # for SOS and EOS tokens
     raw_datasets = dataset_util.remove_invalid_pairs(raw_datasets,
                                                      src_tokenizer,
@@ -171,10 +174,10 @@ def preprocess(config: dict):
 
     for dataset, num_row in raw_datasets.num_rows.items():
         if dataset in num_rows:
-            print(f'Removed {num_rows[dataset] - num_row} pairs from {dataset} dataset')
+            logger.info('Removed %d pairs from %s', num_rows[dataset] - num_row, dataset)
 
     raw_datasets.save_to_disk(config['dataset_save_path'])
-    print(f'Saved dataset to {config["dataset_save_path"]}')
+    logger.info('Saved dataset to %s', config["dataset_save_path"])
 
 def main():
     parser = argparse.ArgumentParser(description='Preprocess the dataset')

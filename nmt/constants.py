@@ -26,6 +26,7 @@ class Config:
     VI_WORD_SEGMENTTATION = 'vi_word_segmentation'
     REMOVE_UNDERSCORES = 'remove_underscores'
 
+
 # it's like a underscore, but will not be effected by tokenizer of sacrebleu
 # when working with Vietnamese (underscore is used in word segmentation, e.g. underthesea, pyvi)
 LOWER_ONE_EIGHTH_BLOCK = u'\u2581'  # "▁"

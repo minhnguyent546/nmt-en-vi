@@ -15,10 +15,13 @@ from nmt.utils import (
     dataset as dataset_util,
 )
 from nmt.utils.misc import set_seed
+from nmt.utils.logging import init_logger, logger
 from nmt.constants import SpecialToken, Epoch
 
 def test_model(config: dict):
     set_seed(config['seed'])
+    init_logger()
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
 
@@ -26,10 +29,10 @@ def test_model(config: dict):
     model_dir = checkpoints_dir / config['model_dir']
     model_dir.mkdir(parents=True, exist_ok=True)
 
-    print('Loading tokenizers')
+    logger.info('Loading tokenizers')
     src_tokenizer, target_tokenizer = dataset_util.load_trained_tokenizers(config)
 
-    print('Creating data loader')
+    logger.info('Creating data loader')
     saved_dataset: DatasetDict = load_from_disk(config['dataset_save_path'])
     test_data_loader = dataset_util.make_data_loader(saved_dataset['test'],
                                                      src_tokenizer,
@@ -49,11 +52,11 @@ def test_model(config: dict):
         model_weights_path = model_util.get_weights_file_path(f'{test_checkpoint:0>2}', config)
 
     if model_weights_path is None:
-        print('No model weights found to load')
-        print('Aborted')
+        logger.info('No model weights found to load')
+        logger.info('Aborted')
         sys.exit(1)
 
-    print(f'Loading weights from checkpoint: {test_checkpoint}')
+    logger.info('Loading weights from checkpoint: %s', test_checkpoint)
 
     states = torch.load(model_weights_path, map_location=device)
 
@@ -70,13 +73,13 @@ def test_model(config: dict):
 
     metric_scores = test_stats.compute()
 
-    print(pd.DataFrame({
+    logger.info('\n%s', pd.DataFrame({
         'test_loss': [metric_scores['loss']],
         'test_accuracy': [metric_scores['acc']],
         'test_precision': [metric_scores['precision']],
         'test_recall': [metric_scores['recall']],
         'test_f_beta': [metric_scores['f_beta']],
-        'test_blue': [test_bleu],
+        'test_bleu': [test_bleu],
     }).to_string(index=False))
 
 def main():
