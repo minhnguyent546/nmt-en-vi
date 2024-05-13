@@ -7,10 +7,11 @@ def init_logger(*, name: str = 'nmt-en-vi', log_level=logging.INFO) -> logging.L
     logger = logging.getLogger(name)
     logger.setLevel(log_level)
 
-    console_handler = logging.StreamHandler()
-    logging_format = logging.Formatter('[%(levelname)s:%(funcName)s] %(message)s')
-    console_handler.setFormatter(logging_format)
+    if not logger.hasHandlers():
+        console_handler = logging.StreamHandler()
+        logging_format = logging.Formatter('[%(levelname)s:%(funcName)s] %(message)s')
+        console_handler.setFormatter(logging_format)
 
-    logger.addHandler(console_handler)
+        logger.addHandler(console_handler)
 
     return logger
