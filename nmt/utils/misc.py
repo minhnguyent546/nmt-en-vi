@@ -58,7 +58,3 @@ def remove_end_tokens(
     if last_token == SpecialToken.EOS:
         tokens = tokens[:-1]
     return tokens
-
-def tokens_to_text(tokens: list[str]) -> str:
-    text = ' '.join(tokens)
-

@@ -40,7 +40,9 @@ dataset_config_kwags:
   field: data
 source: source # name of the source feature
 target: target # name of the target feature
-source_vocab_size: 32_000
+tokenizer_model: bpe # possible values: word_level, bpe
+share_vocab: false # whenever to share vocab between source and target sentences
+source_vocab_size: 32_000 # `source_vocab_size` will be used over `target_vocab_size` when `share_vocab` is enabled
 target_vocab_size: 32_000
 val_size_rate: null # a rate for creating custom validation set from training set
 max_set_size:

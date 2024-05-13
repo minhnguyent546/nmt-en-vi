@@ -14,7 +14,7 @@ from nmt.utils import (
     model as model_util,
     misc as misc_util,
 )
-from nmt.constants import SpecialToken
+from nmt.constants import SpecialToken, LOWER_ONE_EIGHTH_BLOCK
 
 def compute_dataset_bleu(
     model: Transformer,
@@ -31,7 +31,6 @@ def compute_dataset_bleu(
 ) -> float:
 
     device = model.device
-    src_text_list = []
     target_text_list = []
     pred_text_list = []
 
@@ -70,13 +69,6 @@ def compute_dataset_bleu(
                 # decoding with beam search
                 cand_list = model_util.beam_search_decode(model, device, beam_size, encoder_input,
                                                           target_tokenizer, seq_length, return_topk=beam_return_topk)
-                pred_token_ids = cand_list[0]
-            else:
-                # decoding with greedy search
-                pred_token_ids = model_util.greedy_search_decode(model, device, encoder_input,
-                                                                 target_tokenizer, seq_length)
-
-            if cand_list is not None:
                 cand_text_list = []
                 for cand in cand_list:
                     cand = cand.detach().cpu().numpy()
@@ -84,7 +76,15 @@ def compute_dataset_bleu(
                     # remove <SOS> and <EOS> tokens if they are present
                     cand = misc_util.remove_end_tokens(cand, target_tokenizer, contains_id=True)
 
-                    cand_text_list.append(target_tokenizer.decode(cand, skip_special_tokens=False))
+                    cand_text = target_tokenizer.decode(cand).replace('_', LOWER_ONE_EIGHTH_BLOCK)
+                    cand_text_list.append(cand_text)
+
+                pred_token_ids = cand_list[0]
+            else:
+                # decoding with greedy search
+                pred_token_ids = model_util.greedy_search_decode(model, device, encoder_input,
+                                                                 target_tokenizer, seq_length)
+
             pred_token_ids = misc_util.remove_end_tokens(pred_token_ids, target_tokenizer, contains_id=True)
 
             # retrieve src_tokens and target_tokens
@@ -109,12 +109,14 @@ def compute_dataset_bleu(
             if isinstance(pred_token_ids, Tensor):
                 pred_token_ids = pred_token_ids.detach().cpu().numpy()
 
-            src_text = src_tokenizer.decode(src_token_ids, skip_special_tokens=False)
-            target_text = target_tokenizer.decode(target_token_ids, skip_special_tokens=False)
-            pred_text = target_tokenizer.decode(pred_token_ids, skip_special_tokens=False)
+            # tokenizer.decode method will remove special tokens by default (e.g. <UNK>)
+            # it should be, because keep <UNK> tokens will increase the BLEU score
+            # but has no meaning. See Post, 2018
+            src_text = src_tokenizer.decode(src_token_ids)
+            target_text = target_tokenizer.decode(target_token_ids).replace('_', LOWER_ONE_EIGHTH_BLOCK)
+            pred_text = target_tokenizer.decode(pred_token_ids).replace('_', LOWER_ONE_EIGHTH_BLOCK)
 
-            src_text_list.append(src_text)
-            target_text_list.append([target_text])
+            target_text_list.append(target_text)
             pred_text_list.append(pred_text)
 
             if log_sentences and data_idx % logging_interval == 0:

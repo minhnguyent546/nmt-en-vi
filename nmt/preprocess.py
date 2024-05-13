@@ -1,35 +1,61 @@
 from pathlib import Path
 import argparse
 import pandas as pd
+from typing import Generator
 
-from datasets import load_dataset, Dataset, DatasetDict
+from datasets import load_dataset, DatasetDict
+import tokenizers
 from tokenizers import Tokenizer
-from tokenizers.models import WordLevel
-from tokenizers.trainers import WordLevelTrainer
+import tokenizers.models
+import tokenizers.trainers
+import tokenizers.decoders
 from tokenizers.pre_tokenizers import Whitespace
 
 from nmt.utils import (
     dataset as dataset_util,
     config as config_util,
+    misc as misc_util,
 )
 from nmt.utils.misc import set_seed
-from nmt.constants import SpecialToken
+from nmt.constants import SpecialToken, TokenizerModel
 
 
-def tokenize(dataset: Dataset, feature: str, config: dict, min_freq: int = 2) -> Tokenizer:
+def tokenize(
+    data_iter: Generator[str, None, None],
+    feature: str,
+    config: dict,
+    *,
+    vocab_size: int = 30_000,
+    min_freq: int = 2,
+) -> Tokenizer:
     checkpoints_dir = Path(config['checkpoints_dir'])
     tokenizer_path = checkpoints_dir / config['tokenizer_basename'].format(feature)
     checkpoints_dir.mkdir(parents=True, exist_ok=True)
-    tokenizer = Tokenizer(WordLevel(unk_token=SpecialToken.UNK))
-    tokenizer.pre_tokenizer = Whitespace()
-    vocab_size = config['source_vocab_size'] if feature == config['source'] else config['target_vocab_size']
-    trainer = WordLevelTrainer(
-        vocab_size=vocab_size,
-        min_frequency=min_freq,
-        special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
-    )
-    dataset_iter = (item for item in dataset[feature])
-    tokenizer.train_from_iterator(dataset_iter, trainer=trainer)
+
+    if config['tokenizer_model'] == TokenizerModel.WORD_LEVEL:
+        tokenizer = Tokenizer(tokenizers.models.WordLevel(unk_token=SpecialToken.UNK))
+        tokenizer.pre_tokenizer = Whitespace()
+        trainer = tokenizers.trainers.WordLevelTrainer(
+            vocab_size=vocab_size,
+            min_frequency=min_freq,
+            show_process=True,
+            special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK]
+        )
+    elif config['tokenizer_model'] == TokenizerModel.BPE:
+        tokenizer = Tokenizer(tokenizers.models.BPE(unk_token=SpecialToken.UNK))
+        tokenizer.pre_tokenizer = Whitespace()
+        tokenizer.decoder = tokenizers.decoders.BPEDecoder(suffix=SpecialToken.BPE_SUFFIX)
+        trainer = tokenizers.trainers.BpeTrainer(
+            vocab_size=vocab_size,
+            min_frequency=1,
+            show_process=True,
+            special_tokens=[SpecialToken.PAD, SpecialToken.SOS, SpecialToken.EOS, SpecialToken.UNK],
+            end_of_word_suffix=SpecialToken.BPE_SUFFIX,
+        )
+    else:
+        raise ValueError(f'Invalid tokenizer model "{config["tokenizer_model"]}". Possible values are {TokenizerModel.WORD_LEVEL}, {TokenizerModel.BPE}.')
+
+    tokenizer.train_from_iterator(data_iter, trainer=trainer)
     tokenizer.save(str(tokenizer_path))
 
     return tokenizer
@@ -69,16 +95,26 @@ def preprocess(config: dict):
     num_rows = raw_datasets.num_rows
     raw_datasets = dataset_util.process_dataset_sentences(raw_datasets, config)
 
-    print(pd.DataFrame(raw_datasets['train'][:5]))
-    print(pd.DataFrame(raw_datasets['validation'][:5]))
-    print(pd.DataFrame(raw_datasets['test'][:5]))
+    for split_name in ['train', 'validation', 'test']:
+        if split_name in raw_datasets:
+            print(pd.DataFrame(raw_datasets[split_name][:5]))
 
     print('Building tokenizers from train dataset')
-    src_tokenizer = tokenize(raw_datasets['train'], config['source'], config)
-    target_tokenizer = tokenize(raw_datasets['train'], config['target'], config)
-
-    print('Size of source vocabulary:', src_tokenizer.get_vocab_size())
-    print('Size of target vocabulary:', target_tokenizer.get_vocab_size())
+    if config['share_vocab']:
+        data_iter = misc_util.combined_iterator(
+            raw_datasets['train'][config['source']],
+            raw_datasets['train'][config['target']],
+        )
+        src_tokenizer = tokenize(data_iter, 'combined', config, vocab_size=config['source_vocab_size'])
+        target_tokenizer = src_tokenizer
+        print('Size of vocabulary:', src_tokenizer.get_vocab_size())
+    else:
+        src_data_iter = (item for item in raw_datasets['train'][config['source']])
+        target_data_iter = (item for item in raw_datasets['train'][config['target']])
+        src_tokenizer = tokenize(src_data_iter, config['source'], config, vocab_size=config['source_vocab_size'])
+        target_tokenizer = tokenize(target_data_iter, config['target'], config, vocab_size=config['target_vocab_size'])
+        print('Size of src vocabulary:', src_tokenizer.get_vocab_size())
+        print('Size of target vocabulary:', target_tokenizer.get_vocab_size())
 
     print('Removing invalid pairs')
     num_reserved_tokens = 2  # for SOS and EOS tokens

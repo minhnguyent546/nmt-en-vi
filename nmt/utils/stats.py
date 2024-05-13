@@ -90,4 +90,3 @@ class Stats:
             writer.add_scalars(f'{prefix}/{metric_name}', {
                 name: score
             }, step)
-
