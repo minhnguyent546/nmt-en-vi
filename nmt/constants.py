@@ -12,14 +12,6 @@ class TokenizerModel:
     BPE = 'bpe'
     WORD_PIECE = 'word_piece'
 
-class DatasetName:
-    IWSLT2015_EN_VI = 'iwslt2015-en-vi'
-    CLANG8 = 'clang8'
-
-class Epoch:
-    EPOCH = 'epoch'
-    LATEST = 'latest'
-
 class Config:
     LOWERCASE = 'lowercase'
     CONTRACTIONS = 'contractions'

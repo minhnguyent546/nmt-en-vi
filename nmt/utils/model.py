@@ -10,36 +10,11 @@ from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
 
-from transformer import Transformer, make_transformer
+from transformer import Transformer
 import transformer.utils.functional as fun
 from nmt.constants import SpecialToken
 from nmt.utils import stats
 
-def make_model(
-    src_tokenizer: Tokenizer,
-    target_tokenizer: Tokenizer,
-    config: dict,
-) -> Transformer:
-    src_vocab_size = src_tokenizer.get_vocab_size()
-    target_vocab_size = target_tokenizer.get_vocab_size()
-    src_pad_token_id = src_tokenizer.token_to_id(SpecialToken.PAD)
-    target_pad_token_id = target_tokenizer.token_to_id(SpecialToken.PAD)
-    model = make_transformer(
-        src_vocab_size,
-        target_vocab_size,
-        config['seq_length'],
-        config['seq_length'],
-        src_pad_token_id,
-        target_pad_token_id,
-        device='auto',
-        d_model=config.get('d_model', 512),
-        num_heads=config.get('num_heads', 8),
-        num_layers=config.get('num_layers', 6),
-        d_ffn=config.get('d_ffn', 2048),
-        dropout_rate=config.get('dropout_rate', 0.1),
-        attention_dropout_rate=config.get('attention_dropout_rate', 0.1),
-    )
-    return model
 
 def make_optimizer(model: Transformer, config: dict) -> optim.Optimizer:
     optim_type = config['optim']
@@ -64,43 +39,28 @@ def make_optimizer(model: Transformer, config: dict) -> optim.Optimizer:
 
     return optimizer
 
-def get_weights_file_path(epoch: str, config: dict) -> str:
-    model_dir = Path(config['checkpoints_dir']) / config['model_dir']
-    model_basename = config['model_basename']
-    model_file = f'{model_basename}_{epoch}.pt'
-    return str(model_dir / model_file)
+def get_weights_file_path(
+    model_save_dir: str,
+    model_basename: str,
+    step: str | int
+) -> str:
+    model_filename = f'{model_basename}-{step}.pt'
+    model_save_path = Path(model_save_dir) / model_filename
+    return str(model_save_path)
 
-def get_latest_weights_file_path(config: dict) -> str | None:
-    model_dir = Path(config['checkpoints_dir']) / config['model_dir']
-    model_basename = config['model_basename']
-    saved_files = list(model_dir.glob(f'{model_basename}_*.pt'))
-    if len(saved_files) > 0:
-        latest_file = sorted(saved_files)[-1]
-        return str(latest_file)
-
-    return None
-
-def count_saved_checkpoints(config: dict) -> int:
-    model_dir = Path(config['checkpoints_dir']) / config['model_dir']
-    model_basename = config['model_basename']
-    saved_files = model_dir.glob(f'{model_basename}_*.pt')
-    num_saved_checkpoints = len(list(saved_files))
-    return num_saved_checkpoints
-
-def ensure_num_saved_checkpoints(config: dict) -> None:
-    save_checkpoints_limit = config['saved_checkpoints_limit']
-    num_saved_checkpoints = count_saved_checkpoints(config)
-    if num_saved_checkpoints < save_checkpoints_limit:
+def ensure_num_saved_checkpoints(
+    model_save_dir: str,
+    model_basename: str,
+    limit: int
+) -> None:
+    model_dir = Path(model_save_dir)
+    saved_files = model_dir.glob(f'{model_basename}*.pt')
+    saved_files = list(saved_files)
+    if len(saved_files) <= limit:
         return
 
-    model_dir = Path(config['checkpoints_dir']) / config['model_dir']
-    model_basename = config['model_basename']
-    saved_files = model_dir.glob(f'{model_basename}_*.pt')
-    saved_files = sorted(saved_files, reverse=True)
-
-    assert num_saved_checkpoints == len(saved_files)
-
-    for saved_file in saved_files[save_checkpoints_limit - 1:]:
+    saved_files = sorted(saved_files)
+    for saved_file in saved_files[:-limit]:
         saved_file.unlink()
 
 def noam_decay(step_num: int, d_model: int = 512, warmup_steps: int = 4000):
@@ -295,6 +255,7 @@ def beam_search_decode(
     result_cands = [cand[0].squeeze(0) for cand in cands]
     return result_cands
 
+@torch.no_grad()
 def evaluate(
     model: Transformer,
     criterion,
@@ -310,33 +271,34 @@ def evaluate(
         Stats: evaluation stats
     """
     device = model.device
-    batch_iterator = tqdm(eval_data_loader, desc='Evaluating')
+    batch_iterator = tqdm(eval_data_loader, desc='Evaluating model')
 
     eval_stats = stats.Stats(pad_token_id=model.target_pad_token_id, ignore_padding=True)
 
     # set model in validation mode
+    is_training = model.training
     model.eval()
 
-    with torch.no_grad():
-        for batch in batch_iterator:
-            encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
-            decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
-            labels = batch['labels'].to(device)  # (batch_size, seq_length)
+    for batch in batch_iterator:
+        encoder_input = batch['encoder_input'].to(device)  # (batch_size, seq_length)
+        decoder_input = batch['decoder_input'].to(device)  # (batch_size, seq_length)
+        labels = batch['labels'].to(device)  # (batch_size, seq_length)
 
-            decoder_output = model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
-            logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
-            pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
+        decoder_output = model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
+        logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+        pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
 
-            # calculating the loss
-            # logits: (batch_size * seq_length, target_vocab_size)
-            # label: (batch_size * seq_length)
-            target_vocab_size = logits.size(-1)
-            loss = criterion(logits.view(-1, target_vocab_size), labels.view(-1))
-            eval_stats.update_step(loss.item(), pred.view(-1), labels.view(-1))
+        # calculating the loss
+        # logits: (batch_size * seq_length, target_vocab_size)
+        # label: (batch_size * seq_length)
+        target_vocab_size = logits.size(-1)
+        loss = criterion(logits.view(-1, target_vocab_size), labels.view(-1))
+        eval_stats.update_step(loss.item(), pred.view(-1), labels.view(-1))
 
-            batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
+        batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
     # set model back to training mode
-    model.train()
+    if is_training:
+        model.train()
 
     return eval_stats

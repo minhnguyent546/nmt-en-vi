@@ -2,10 +2,12 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from transformer.model.encoder import EncoderLayer, Encoder
-from transformer.model.decoder import DecoderLayer, Decoder
+from transformer.model.encoder import Encoder
+from transformer.model.decoder import Decoder
+from transformer.model.transformer_config import TransformerConfig
 from transformer.embedding import Embeddings, PositionalEncoding
 from transformer.utils import functional as fun
+
 
 class Transformer(nn.Module):
     def __init__(
@@ -120,44 +122,20 @@ class Transformer(nn.Module):
     def linear(self, x: Tensor) -> Tensor:
         return self.last_linear(x)
 
-def make_transformer(
-    src_vocab_size: int,
-    target_vocab_size: int,
-    src_seq_length: int,
-    target_seq_length: int,
-    src_pad_token_id: int,
-    target_pad_token_id: int,
-    device: torch.device | str = 'auto',
-    d_model: int = 512,
-    num_heads: int = 8,
-    num_layers: int = 6,
-    d_ffn: int = 2048,
-    dropout_rate: float = 0.1,
-    attention_dropout_rate: float = 0.1,
-) -> Transformer:
-    src_embed = Embeddings(src_vocab_size, d_model)
-    target_embed = Embeddings(target_vocab_size, d_model)
+def build_transformer(config: TransformerConfig) -> Transformer:
+    src_embed = Embeddings(config.src_vocab_size, config.d_model)
+    target_embed = Embeddings(config.target_vocab_size, config.d_model)
 
-    src_pe = PositionalEncoding(d_model, src_seq_length, dropout_rate=dropout_rate)
-    target_pe = PositionalEncoding(d_model, target_seq_length, dropout_rate=dropout_rate)
+    src_pe = PositionalEncoding(config.d_model, config.src_seq_length, dropout=config.dropout)
+    target_pe = PositionalEncoding(config.d_model, config.target_seq_length, dropout=config.dropout)
 
-    encoder_layer = EncoderLayer(d_model,
-                                 num_heads,
-                                 d_ffn,
-                                 dropout_rate=dropout_rate,
-                                 attention_dropout_rate=attention_dropout_rate)
-    decoder_layer = DecoderLayer(d_model,
-                                 num_heads,
-                                 d_ffn,
-                                 dropout_rate=dropout_rate,
-                                 attention_dropout_rate=attention_dropout_rate)
-    encoder = Encoder(encoder_layer, d_model, num_layers)
-    decoder = Decoder(decoder_layer, d_model, num_layers)
-    last_linear = nn.Linear(d_model, target_vocab_size)
-    if isinstance(device, str):
-        if device == 'auto':
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        device = torch.device(device)
+    encoder = Encoder(config)
+    decoder = Decoder(config)
+    last_linear = nn.Linear(config.d_model, config.target_vocab_size)
+    if config.device == 'auto':
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else:
+        device = config.device
 
     # create a transformer
     transformer = Transformer(
@@ -168,12 +146,12 @@ def make_transformer(
         src_pe,
         target_pe,
         last_linear,
-        src_pad_token_id,
-        target_pad_token_id,
+        config.src_pad_token_id,
+        config.target_pad_token_id,
         device,
     )
 
-    print(f'Model has {fun.count_parameters(transformer)} learnable parameters', )
+    print(f'Model has {fun.count_parameters(transformer)} learnable parameters')
 
     # initialize the parameters with Xavier/Glorot
     for param in transformer.parameters():

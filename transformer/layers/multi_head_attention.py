@@ -1,17 +1,16 @@
 import math
 
-import torch
 import torch.nn as nn
 import torch.nn.functional as Fun
 from torch import Tensor
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, num_heads: int, dropout_rate: float = 0.1):
+    def __init__(self, d_model: int, num_heads: int, dropout: float = 0.1):
         """
         Args:
             d_model (int): dimension of the embedding vectors
             num_heads (int): number of attention heads
-            dropout_rate (float): dropout rate in attention
+            dropout (float): dropout rate in attention
         """
         super().__init__()
         self.d_model = d_model
@@ -23,7 +22,7 @@ class MultiHeadAttention(nn.Module):
         self.w_k = nn.Linear(d_model, d_model)
         self.w_v = nn.Linear(d_model, d_model)
         self.w_o = nn.Linear(d_model, d_model)
-        self.dropout = nn.Dropout(p=dropout_rate)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(
         self,
@@ -72,7 +71,7 @@ def scaled_dot_product(
     k: Tensor,
     v: Tensor,
     mask: Tensor | None = None,
-    dropout: nn.Dropout | None = None,
+    dropout: nn.Dropout | float | None = None,
 ) -> tuple[Tensor, Tensor]:
     """
     Args:
@@ -94,6 +93,8 @@ def scaled_dot_product(
 
     attention_probs = Fun.softmax(attention_probs, dim=-1)
     if dropout is not None:
+        if isinstance(dropout, float):
+            dropout = nn.Dropout(dropout)
         attention_probs = dropout(attention_probs)
 
     values = attention_probs @ v

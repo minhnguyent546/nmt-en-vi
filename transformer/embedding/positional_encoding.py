@@ -5,17 +5,17 @@ import torch.nn as nn
 from torch import Tensor
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model: int, max_seq_length: int, dropout_rate: float = 0.1):
+    def __init__(self, d_model: int, max_seq_length: int, dropout: float = 0.1):
         """
         Args:
             d_model (int): dimension of the embedding vectors
             max_seq_length (int): maximum length of the sequences
-            dropout_rate (float): randomly zeroes-out some of the input
+            dropout (float): randomly zeroes-out some of the input
         """
         super().__init__()
         self.d_model = d_model
         self.max_seq_length = max_seq_length
-        self.dropout = nn.Dropout(p=dropout_rate)
+        self.dropout = nn.Dropout(dropout)
 
         pe = torch.zeros((max_seq_length, d_model))
         positions = torch.arange(max_seq_length, dtype=torch.float).unsqueeze(1)  # (max_seq_length, 1)

@@ -14,8 +14,9 @@ from nmt.utils import (
 )
 from nmt.utils.misc import set_seed
 from nmt.utils.logging import init_logger, logger
-from nmt.trainer import Trainer
-from nmt.constants import SpecialToken, Epoch
+from nmt.trainer import Trainer, TrainingArguments
+from nmt.constants import SpecialToken
+from transformer import build_transformer, TransformerConfig
 
 
 def train_model(config: dict):
@@ -35,24 +36,40 @@ def train_model(config: dict):
 
     logger.info('Creating data loaders')
     saved_dataset: DatasetDict = load_from_disk(config['dataset_save_path'])
-    train_data_loader = dataset_util.make_data_loader(saved_dataset['train'],
-                                                      src_tokenizer,
-                                                      target_tokenizer,
-                                                      batch_size=config['train_batch_size'],
-                                                      shuffle=True,
-                                                      config=config)
-    validation_data_loader = dataset_util.make_data_loader(saved_dataset['validation'],
-                                                           src_tokenizer,
-                                                           target_tokenizer,
-                                                           batch_size=config['eval_batch_size'],
-                                                           shuffle=False,
-                                                           config=config)
+    train_data_loader = dataset_util.make_data_loader(
+        saved_dataset['train'],
+        src_tokenizer,
+        target_tokenizer,
+        batch_size=config['train_batch_size'],
+        shuffle=True,
+        config=config
+    )
+    validation_data_loader = dataset_util.make_data_loader(
+        saved_dataset['validation'],
+        src_tokenizer,
+        target_tokenizer,
+        batch_size=config['eval_batch_size'],
+        shuffle=False,
+        config=config
+    )
 
-    model = model_util.make_model(src_tokenizer, target_tokenizer, config)
+    transformer_config = TransformerConfig(
+        src_vocab_size=src_tokenizer.get_vocab_size(),
+        target_vocab_size=target_tokenizer.get_vocab_size(),
+        src_seq_length=config['src_seq_length'],
+        target_seq_length=config['target_seq_length'],
+        src_pad_token_id=src_tokenizer.token_to_id(SpecialToken.PAD),
+        target_pad_token_id=target_tokenizer.token_to_id(SpecialToken.PAD),
+        device=device,
+        d_model=config['d_model'],
+        num_heads=config['num_heads'],
+        num_layers=config['num_layers'],
+        d_ffn=config['d_ffn'],
+        dropout=config['dropout'],
+        attention_dropout=config['attention_dropout'],
+    )
+    model = build_transformer(transformer_config)
     model.to(device)
-
-    # Tensorboard
-    writer = SummaryWriter(config['experiment_name'])
 
     # optimizer and lr scheduler
     learning_rate = config['learning_rate']
@@ -61,42 +78,74 @@ def train_model(config: dict):
     if config['enable_lr_scheduler']:
         lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
             optimizer,
-            lr_lambda=lambda step_num: learning_rate
-                                       * model_util.noam_decay(
-                                            step_num,
-                                            d_model=config['d_model'],
-                                            warmup_steps=config['warmup_steps']
-                                        )
+            lr_lambda=lambda step_num: learning_rate * model_util.noam_decay(
+                step_num,
+                d_model=config['d_model'],
+                warmup_steps=config['warmup_steps'])
         )
 
-    preload = config['preload']
-    preload_states = None
-    if preload is not None:
-        model_filename = None
-        if preload == Epoch.LATEST:
-            model_filename = model_util.get_latest_weights_file_path(config=config)
-        else:
-            model_filename = model_util.get_weights_file_path(f'{preload:0>2}', config=config)
+    initial_global_step = 0
+    initial_train_stats = None
+    from_checkpoint = config['from_checkpoint']
+    if from_checkpoint is not None:
+        logger.info('Loading states from checkpoint: %s', from_checkpoint)
+        checkpoint_states = torch.load(from_checkpoint, map_location=device)
+        required_keys = [
+            'model_state_dict',
+            'optimizer_state_dict',
+            'config',
+        ]
+        if lr_scheduler is not None:
+            required_keys.append('lr_scheduler_state_dict')
+        for key in required_keys:
+            if key not in checkpoint_states:
+                raise ValueError(f'Missing key "{key}" in checkpoint')
 
-        if model_filename is not None:
-            logger.info('Load states from previous process')
-            preload_states = torch.load(model_filename)
+        optimizer.load_state_dict(checkpoint_states['optimizer_state_dict'])
+        transformer_config = checkpoint_states['config']
+        model = build_transformer(transformer_config).to(device)
+        model.load_state_dict(checkpoint_states['model_state_dict'])
+
+        if lr_scheduler is not None:
+            lr_scheduler.load_state_dict(checkpoint_states['lr_scheduler_state_dict'])
+
+        initial_global_step = checkpoint_states.get('global_step', initial_global_step)
+        initial_train_stats = checkpoint_states.get('train_stats', initial_train_stats)
 
     criterion = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
                                     label_smoothing=config['label_smoothing'])
 
-    trainer = Trainer(model,
-                      optimizer,
-                      criterion,
-                      src_tokenizer,
-                      target_tokenizer,
-                      config,
-                      writer=writer,
-                      lr_scheduler=lr_scheduler)
-    trainer.train(train_data_loader,
-                  validation_data_loader,
-                  validation_interval=config['validation_interval'],
-                  preload_states=preload_states)
+    # Tensorboard
+    writer = SummaryWriter(config['experiment_name'])
+
+    training_args = TrainingArguments(
+        model_save_dir=str(Path(config['checkpoints_dir']) / config['model_dir']),
+        model_basename=config['model_basename'],
+        saved_checkpoints_limit=config['saved_checkpoints_limit'],
+        train_steps=config['train_steps'],
+        valid_steps=config['valid_steps'],
+        valid_interval=config['valid_interval'],
+        save_every=config['save_every'],
+        train_batch_size=config['train_batch_size'],
+        eval_batch_size=config['eval_batch_size'],
+        fp16=config['fp16'],
+        label_smoothing=config['label_smoothing'],
+        max_grad_norm=config['max_grad_norm'],
+        initial_global_step=initial_global_step,
+        initial_train_stats=initial_train_stats,
+    )
+    trainer = Trainer(
+        model,
+        optimizer,
+        criterion,
+        src_tokenizer,
+        target_tokenizer,
+        training_args,
+        transformer_config,
+        lr_scheduler=lr_scheduler,
+        writer=writer,
+    )
+    trainer.train(train_data_loader, validation_data_loader)
 
 def main():
     parser = argparse.ArgumentParser(description='Train the model')
@@ -108,6 +157,7 @@ def main():
     args = parser.parse_args()
     config = config_util.get_config(args.config_file)
     train_model(config)
+
 
 if __name__ == '__main__':
     main()

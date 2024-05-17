@@ -4,14 +4,14 @@ from torch import Tensor
 from transformer.layers.layer_norm import LayerNormalization
 
 class ResidualConnection(nn.Module):
-    def __init__(self, features: int, dropout_rate: float = 0.1):
+    def __init__(self, features: int, dropout: float = 0.1):
         """
         Args:
             features (int): feature dimensions
-            dropout_rate (float): dropout rate
+            dropout (float): dropout rate
         """
         super().__init__()
-        self.dropout = nn.Dropout(p=dropout_rate)
+        self.dropout = nn.Dropout(dropout)
         self.norm = LayerNormalization(features)
 
     def forward(self, x: Tensor, sublayer: nn.Module) -> Tensor:

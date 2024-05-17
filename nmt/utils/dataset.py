@@ -32,7 +32,7 @@ def make_data_loader(
         target_tokenizer,
         config['source'],
         config['target'],
-        config['seq_length'],
+        config['src_seq_length'],
     )
 
     assert src_tokenizer.token_to_id(SpecialToken.PAD) == target_tokenizer.token_to_id(SpecialToken.PAD)

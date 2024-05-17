@@ -1,4 +1,3 @@
-import sys
 import argparse
 import pandas as pd
 from pathlib import Path
@@ -16,7 +15,8 @@ from nmt.utils import (
 )
 from nmt.utils.misc import set_seed
 from nmt.utils.logging import init_logger, logger
-from nmt.constants import SpecialToken, Epoch
+from nmt.constants import SpecialToken
+from transformer import build_transformer
 
 def test_model(config: dict):
     set_seed(config['seed'])
@@ -34,33 +34,25 @@ def test_model(config: dict):
 
     logger.info('Creating data loader')
     saved_dataset: DatasetDict = load_from_disk(config['dataset_save_path'])
-    test_data_loader = dataset_util.make_data_loader(saved_dataset['test'],
-                                                     src_tokenizer,
-                                                     target_tokenizer,
-                                                     batch_size=config['eval_batch_size'],
-                                                     shuffle=False,
-                                                     config=config)
-
-    model = model_util.make_model(src_tokenizer, target_tokenizer, config)
-    model.to(device)
+    test_data_loader = dataset_util.make_data_loader(
+        saved_dataset['test'],
+        src_tokenizer,
+        target_tokenizer,
+        batch_size=config['eval_batch_size'],
+        shuffle=False,
+        config=config,
+    )
 
     test_checkpoint = config['test_checkpoint']
-    model_weights_path = None
-    if test_checkpoint == Epoch.LATEST:
-        model_weights_path = model_util.get_latest_weights_file_path(config=config)
-    else:
-        model_weights_path = model_util.get_weights_file_path(f'{test_checkpoint:0>2}', config)
-
-    if model_weights_path is None:
-        logger.info('No model weights found to load')
-        logger.info('Aborted')
-        sys.exit(1)
-
-    logger.info('Loading weights from checkpoint: %s', test_checkpoint)
-
-    states = torch.load(model_weights_path, map_location=device)
-
-    model.load_state_dict(states['model_state_dict'])
+    logger.info('Testing model with checkpoint: %s', test_checkpoint)
+    checkpoint_states = torch.load(test_checkpoint, map_location=device)
+    required_keys = ['transformer_config', 'model_state_dict']
+    for key in required_keys:
+        if key not in checkpoint_states:
+            raise ValueError(f'Missing key "{key}" in checkpoint')
+    transformer_config = checkpoint_states['transformer_config']
+    model = build_transformer(transformer_config).to(device)
+    model.load_state_dict(checkpoint_states['model_state_dict'])
 
     criterion = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
                                     label_smoothing=config['label_smoothing'])
