@@ -169,7 +169,7 @@ def preprocess(config: dict):
     raw_datasets = dataset_util.remove_invalid_pairs(raw_datasets,
                                                      src_tokenizer,
                                                      target_tokenizer,
-                                                     config['seq_length'] - num_reserved_tokens,
+                                                     config['src_seq_length'] - num_reserved_tokens,
                                                      config)
 
     for dataset, num_row in raw_datasets.num_rows.items():

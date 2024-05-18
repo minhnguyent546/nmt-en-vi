@@ -47,7 +47,8 @@ class Trainer:
         args: TrainingArguments,
         transformer_config: TransformerConfig,
         lr_scheduler=None,
-        writer: SummaryWriter | None = None
+        scaler_state_dict=None,
+        writer: SummaryWriter | None = None,
     ) -> None:
         self.model = model
         self.device = model.device
@@ -71,6 +72,8 @@ class Trainer:
             self.train_dtype = torch.float16
             self.autocast_ctx = torch.cuda.amp.autocast(dtype=self.train_dtype)
         self.scaler = torch.cuda.amp.GradScaler(enabled=(self.train_dtype == torch.float16))
+        if scaler_state_dict is not None:
+            self.scaler.load_state_dict(scaler_state_dict)
 
     def train(
         self,
@@ -79,14 +82,15 @@ class Trainer:
     ) -> None:
         # set model in training mode
         self.model.train()
-        data_loader_len = len(train_data_loader)
-        # note that the step is `data_loader_len` (not 1)
-        for global_step in range(self.args.initial_global_step, self.args.train_steps, data_loader_len):
+
+        global_step = self.args.initial_global_step
+        train_progress_bar = tqdm(range(global_step, self.args.train_steps), desc='Training model')
+        while global_step < self.args.train_steps:
             # empty cuda cache
             torch.cuda.empty_cache()
 
-            batch_iterator = tqdm(train_data_loader, desc='Training model')
-            for batch_idx, batch in enumerate(batch_iterator):
+            # TODO: currently, this training does not care about the state of the data loader
+            for batch in train_data_loader:
                 encoder_input = batch['encoder_input'].to(self.device)  # (batch_size, seq_length)
                 decoder_input = batch['decoder_input'].to(self.device)  # (batch_size, seq_length)
 
@@ -123,7 +127,7 @@ class Trainer:
                     self.lr_scheduler.step()
 
                 self.train_stats.update_step(loss.item(), pred.view(-1), labels.view(-1))
-                batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
+                train_progress_bar.set_postfix({'loss': f'{loss.item():0.3f}'})
 
                 if self.writer is not None:
                     self.writer.add_scalar('loss/train_batch_loss', loss.item(), global_step)
@@ -142,7 +146,12 @@ class Trainer:
 
                     self.writer.flush()
 
-                if global_step + batch_idx >= self.args.train_steps:
+                if (global_step + 1) % self.args.save_every == 0:
+                    self._save_checkpoint(global_step + 1)
+
+                global_step += 1
+                train_progress_bar.update()
+                if global_step >= self.args.train_steps:
                     break
 
     def _report_stats(
@@ -174,6 +183,7 @@ class Trainer:
             'train_stats': self.train_stats,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
+            'scaler_state_dict': self.scaler.state_dict(),
             'config': self.transformer_config,
         }
 

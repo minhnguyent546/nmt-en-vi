@@ -46,11 +46,11 @@ def test_model(config: dict):
     test_checkpoint = config['test_checkpoint']
     logger.info('Testing model with checkpoint: %s', test_checkpoint)
     checkpoint_states = torch.load(test_checkpoint, map_location=device)
-    required_keys = ['transformer_config', 'model_state_dict']
+    required_keys = ['config', 'model_state_dict']
     for key in required_keys:
         if key not in checkpoint_states:
             raise ValueError(f'Missing key "{key}" in checkpoint')
-    transformer_config = checkpoint_states['transformer_config']
+    transformer_config = checkpoint_states['config']
     model = build_transformer(transformer_config).to(device)
     model.load_state_dict(checkpoint_states['model_state_dict'])
 
@@ -60,8 +60,8 @@ def test_model(config: dict):
     test_stats = model_util.evaluate(model, criterion, test_data_loader)
     test_bleu = bleu_util.compute_dataset_bleu(model, test_data_loader.dataset,
                                                src_tokenizer, target_tokenizer,
-                                               config['seq_length'],
-                                               **config['compute_bleu_kwargs'])
+                                               config['target_seq_length'],
+                                               **config['valid_compute_bleu_kwargs'])
 
     metric_scores = test_stats.compute()
 

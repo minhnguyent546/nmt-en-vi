@@ -87,6 +87,7 @@ def train_model(config: dict):
     initial_global_step = 0
     initial_train_stats = None
     from_checkpoint = config['from_checkpoint']
+    scaler_state_dict = None
     if from_checkpoint is not None:
         logger.info('Loading states from checkpoint: %s', from_checkpoint)
         checkpoint_states = torch.load(from_checkpoint, map_location=device)
@@ -105,6 +106,8 @@ def train_model(config: dict):
         transformer_config = checkpoint_states['config']
         model = build_transformer(transformer_config).to(device)
         model.load_state_dict(checkpoint_states['model_state_dict'])
+        if 'scaler_state_dict' in checkpoint_states:
+            scaler_state_dict = checkpoint_states['scaler_state_dict']
 
         if lr_scheduler is not None:
             lr_scheduler.load_state_dict(checkpoint_states['lr_scheduler_state_dict'])
@@ -123,8 +126,8 @@ def train_model(config: dict):
         model_basename=config['model_basename'],
         saved_checkpoints_limit=config['saved_checkpoints_limit'],
         train_steps=config['train_steps'],
-        valid_steps=config['valid_steps'],
         valid_interval=config['valid_interval'],
+        valid_compute_bleu_kwargs=config['valid_compute_bleu_kwargs'],
         save_every=config['save_every'],
         train_batch_size=config['train_batch_size'],
         eval_batch_size=config['eval_batch_size'],
@@ -144,6 +147,7 @@ def train_model(config: dict):
         transformer_config,
         lr_scheduler=lr_scheduler,
         writer=writer,
+        scaler_state_dict=scaler_state_dict,
     )
     trainer.train(train_data_loader, validation_data_loader)
 
