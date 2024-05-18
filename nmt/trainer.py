@@ -17,6 +17,7 @@ from nmt.utils import (
     bleu as bleu_util,
 )
 from nmt.utils import stats
+from nmt.utils.logging import logger
 
 
 @dataclass
@@ -71,6 +72,11 @@ class Trainer:
         if args.fp16 and torch.cuda.is_available() and self.model.device.type == 'cuda':
             self.train_dtype = torch.float16
             self.autocast_ctx = torch.cuda.amp.autocast(dtype=self.train_dtype)
+            logger.warning(
+                f'Mixed precision training enabled with dtype: {self.train_dtype}. '
+                'When mixed precision is enabled, the training process can not be resumed from previous checkpoints. '
+                'See related issue here: https://discuss.pytorch.org/t/resume-training-with-mixed-precision-lead-to-no-inf-checks-were-recorded-for-this-optimizer/115828/3'
+            )
         self.scaler = torch.cuda.amp.GradScaler(enabled=(self.train_dtype == torch.float16))
         if scaler_state_dict is not None:
             self.scaler.load_state_dict(scaler_state_dict)
