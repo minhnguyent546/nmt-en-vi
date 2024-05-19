@@ -1,8 +1,8 @@
 import math
 
+from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as Fun
-from torch import Tensor
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model: int, num_heads: int, dropout: float = 0.1):

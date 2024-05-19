@@ -1,11 +1,11 @@
 import numpy as np
 
-from torch import Tensor
-from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import (
     accuracy_score,
     precision_recall_fscore_support,
 )
+from torch import Tensor
+from torch.utils.tensorboard import SummaryWriter
 
 class Stats:
     def __init__(

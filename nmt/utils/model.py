@@ -3,17 +3,17 @@ from tqdm.autonotebook import tqdm
 
 import torch
 from torch import optim
-import torch.nn.functional as Fun
 from torch import Tensor
+import torch.nn.functional as Fun
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from tokenizers import Tokenizer
 
-from transformer import Transformer
-import transformer.utils.functional as fun
 from nmt.constants import SpecialToken
 from nmt.utils import stats
+from transformer import Transformer
+import transformer.utils.functional as fun
 
 
 def make_optimizer(model: Transformer, config: dict) -> optim.Optimizer:

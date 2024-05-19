@@ -1,7 +1,7 @@
 import math
 
-import torch.nn as nn
 from torch import Tensor
+import torch.nn as nn
 
 class Embeddings(nn.Module):
     def __init__(self, vocab_size: int, d_model: int):

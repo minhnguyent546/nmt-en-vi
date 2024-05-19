@@ -1,8 +1,8 @@
 import copy
 
 import torch
-import torch.nn as nn
 from torch import Tensor
+import torch.nn as nn
 
 def count_parameters(model: nn.Module) -> int:
     return sum(

@@ -1,11 +1,11 @@
 import torch
-import torch.nn as nn
 from torch import Tensor
+import torch.nn as nn
 
-from transformer.model.encoder import Encoder
-from transformer.model.decoder import Decoder
-from transformer.model.transformer_config import TransformerConfig
 from transformer.embedding import Embeddings, PositionalEncoding
+from transformer.model.decoder import Decoder
+from transformer.model.encoder import Encoder
+from transformer.model.transformer_config import TransformerConfig
 from transformer.utils import functional as fun
 
 

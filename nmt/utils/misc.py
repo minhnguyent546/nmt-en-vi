@@ -1,6 +1,6 @@
+import numpy as np
 import random
 from typing import Generator
-import numpy as np
 
 import torch
 from torch import Tensor

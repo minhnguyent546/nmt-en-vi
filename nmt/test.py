@@ -7,16 +7,17 @@ import torch.nn as nn
 
 from datasets import load_from_disk, DatasetDict
 
+from nmt.constants import SpecialToken
 from nmt.utils import (
     model as model_util,
     config as config_util,
     bleu as bleu_util,
     dataset as dataset_util,
 )
-from nmt.utils.misc import set_seed
 from nmt.utils.logging import init_logger, logger
-from nmt.constants import SpecialToken
+from nmt.utils.misc import set_seed
 from transformer import build_transformer
+
 
 def test_model(config: dict):
     set_seed(config['seed'])

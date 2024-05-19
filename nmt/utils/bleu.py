@@ -2,19 +2,17 @@ from tqdm.autonotebook import tqdm
 
 import torch
 from torch import Tensor
-# from torchtext.data.metrics import bleu_score
-
-from tokenizers import Tokenizer
 
 import evaluate
+from tokenizers import Tokenizer
 
-from transformer import Transformer
 from nmt.billingual_dataset import BilingualDataset
+from nmt.constants import SpecialToken, LOWER_ONE_EIGHTH_BLOCK
 from nmt.utils import (
     model as model_util,
     misc as misc_util,
 )
-from nmt.constants import SpecialToken, LOWER_ONE_EIGHTH_BLOCK
+from transformer import Transformer
 
 @torch.no_grad()
 def compute_dataset_bleu(

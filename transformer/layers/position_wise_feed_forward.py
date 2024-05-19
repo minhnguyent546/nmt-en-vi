@@ -1,5 +1,5 @@
-import torch.nn as nn
 from torch import Tensor
+import torch.nn as nn
 
 class PositionWiseFeedForward(nn.Module):
     def __init__(self, d_model: int, d_ffn: int, dropout: float = 0.1):

@@ -7,15 +7,15 @@ from torch.utils.tensorboard import SummaryWriter
 
 from datasets import load_from_disk, DatasetDict
 
+from nmt.constants import SpecialToken
+from nmt.trainer import Trainer, TrainingArguments
 from nmt.utils import (
     model as model_util,
     config as config_util,
     dataset as dataset_util,
 )
-from nmt.utils.misc import set_seed
 from nmt.utils.logging import init_logger, logger
-from nmt.trainer import Trainer, TrainingArguments
-from nmt.constants import SpecialToken
+from nmt.utils.misc import set_seed
 from transformer import build_transformer, TransformerConfig
 
 

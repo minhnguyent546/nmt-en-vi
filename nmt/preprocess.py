@@ -1,24 +1,24 @@
-from pathlib import Path
 import argparse
 import pandas as pd
+from pathlib import Path
 from typing import Generator, Literal
 
 from datasets import load_dataset, DatasetDict
 import tokenizers
 from tokenizers import Tokenizer
-import tokenizers.models
-import tokenizers.trainers
 import tokenizers.decoders
+import tokenizers.models
 from tokenizers.pre_tokenizers import Whitespace
+import tokenizers.trainers
 
+from nmt.constants import SpecialToken, TokenizerModel
 from nmt.utils import (
     dataset as dataset_util,
     config as config_util,
     misc as misc_util,
 )
-from nmt.utils.misc import set_seed
 from nmt.utils.logging import init_logger, logger
-from nmt.constants import SpecialToken, TokenizerModel
+from nmt.utils.misc import set_seed
 
 
 def get_tokenizer_trainer(

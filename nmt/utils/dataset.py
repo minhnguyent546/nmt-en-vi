@@ -1,7 +1,7 @@
 import html
+from pathlib import Path
 import re
 from typing import Any
-from pathlib import Path
 
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
@@ -9,12 +9,12 @@ from torch.utils.data import DataLoader
 from datasets import Dataset, DatasetDict
 from tokenizers import Tokenizer
 
+import contractions
 import underthesea
-import contractions  # NOTE: this lib does not work well in some cases!
 
 from nmt.billingual_dataset import BilingualDataset
-from nmt.utils.misc import is_enabled
 from nmt.constants import Config, SpecialToken
+from nmt.utils.misc import is_enabled
 
 
 def make_data_loader(
