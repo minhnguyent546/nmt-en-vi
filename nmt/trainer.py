@@ -2,22 +2,18 @@ from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import Any
 
-from tqdm.autonotebook import tqdm
-
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from tqdm.autonotebook import tqdm
 
 from tokenizers import Tokenizer
 
-from transformer import Transformer, TransformerConfig
-from nmt.utils import (
-    model as model_util,
-    bleu as bleu_util,
-)
+from nmt.utils import bleu as bleu_util, model as model_util
 from nmt.utils import stats
 from nmt.utils.logging import logger
+from transformer import Transformer, TransformerConfig
 
 
 @dataclass

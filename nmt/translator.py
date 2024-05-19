@@ -1,18 +1,16 @@
-import re, html
 import contractions
+import html
+import re
 
 import torch
 from torch import Tensor
 
 from tokenizers import Tokenizer
 
-from transformer import Transformer
-from nmt.utils import (
-    model as model_util,
-    misc as misc_util,
-)
 from nmt.constants import Config, SpecialToken
-from nmt.utils.tokenizer import MosesTokenizer, MosesDetokenizer
+from nmt.utils import misc as misc_util, model as model_util
+from nmt.utils.tokenizer import MosesDetokenizer, MosesTokenizer
+from transformer import Transformer
 
 
 class Translator:

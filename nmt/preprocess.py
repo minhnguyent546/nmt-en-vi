@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Generator, Literal
 
-from datasets import load_dataset, DatasetDict
+from datasets import DatasetDict, load_dataset
 import tokenizers
 from tokenizers import Tokenizer
 import tokenizers.decoders
@@ -13,8 +13,8 @@ import tokenizers.trainers
 
 from nmt.constants import SpecialToken, TokenizerModel
 from nmt.utils import (
-    dataset as dataset_util,
     config as config_util,
+    dataset as dataset_util,
     misc as misc_util,
 )
 from nmt.utils.logging import init_logger, logger

@@ -7,12 +7,10 @@ import evaluate
 from tokenizers import Tokenizer
 
 from nmt.billingual_dataset import BilingualDataset
-from nmt.constants import SpecialToken, LOWER_ONE_EIGHTH_BLOCK
-from nmt.utils import (
-    model as model_util,
-    misc as misc_util,
-)
+from nmt.constants import LOWER_ONE_EIGHTH_BLOCK, SpecialToken
+from nmt.utils import misc as misc_util, model as model_util
 from transformer import Transformer
+
 
 @torch.no_grad()
 def compute_dataset_bleu(

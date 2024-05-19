@@ -6,6 +6,7 @@ from tokenizers import Tokenizer
 
 from nmt.constants import SpecialToken
 
+
 class BilingualDataset(Dataset):
     def __init__(
         self,

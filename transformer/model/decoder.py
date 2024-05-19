@@ -2,12 +2,13 @@ from torch import Tensor
 import torch.nn as nn
 
 from transformer.layers import (
-    MultiHeadAttention,
-    ResidualConnection,
-    PositionWiseFeedForward,
     LayerNormalization,
+    MultiHeadAttention,
+    PositionWiseFeedForward,
+    ResidualConnection,
 )
 from transformer.model.transformer_config import TransformerConfig
+
 
 class DecoderLayer(nn.Module):
     def __init__(self, config: TransformerConfig):

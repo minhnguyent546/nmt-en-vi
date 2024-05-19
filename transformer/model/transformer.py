@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -8,6 +10,44 @@ from transformer.model.encoder import Encoder
 from transformer.model.transformer_config import TransformerConfig
 from transformer.utils import functional as fun
 
+
+def build_transformer(config: TransformerConfig) -> Transformer:
+    src_embed = Embeddings(config.src_vocab_size, config.d_model)
+    target_embed = Embeddings(config.target_vocab_size, config.d_model)
+
+    src_pe = PositionalEncoding(config.d_model, config.src_seq_length, dropout=config.dropout)
+    target_pe = PositionalEncoding(config.d_model, config.target_seq_length, dropout=config.dropout)
+
+    encoder = Encoder(config)
+    decoder = Decoder(config)
+    last_linear = nn.Linear(config.d_model, config.target_vocab_size)
+    if config.device == 'auto':
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else:
+        device = config.device
+
+    # create a transformer
+    transformer = Transformer(
+        encoder,
+        decoder,
+        src_embed,
+        target_embed,
+        src_pe,
+        target_pe,
+        last_linear,
+        config.src_pad_token_id,
+        config.target_pad_token_id,
+        device,
+    )
+
+    print(f'Model has {fun.count_parameters(transformer)} learnable parameters')
+
+    # initialize the parameters with Xavier/Glorot
+    for param in transformer.parameters():
+        if param.dim() > 1:
+            nn.init.xavier_uniform_(param)
+
+    return transformer
 
 class Transformer(nn.Module):
     def __init__(
@@ -121,41 +161,3 @@ class Transformer(nn.Module):
 
     def linear(self, x: Tensor) -> Tensor:
         return self.last_linear(x)
-
-def build_transformer(config: TransformerConfig) -> Transformer:
-    src_embed = Embeddings(config.src_vocab_size, config.d_model)
-    target_embed = Embeddings(config.target_vocab_size, config.d_model)
-
-    src_pe = PositionalEncoding(config.d_model, config.src_seq_length, dropout=config.dropout)
-    target_pe = PositionalEncoding(config.d_model, config.target_seq_length, dropout=config.dropout)
-
-    encoder = Encoder(config)
-    decoder = Decoder(config)
-    last_linear = nn.Linear(config.d_model, config.target_vocab_size)
-    if config.device == 'auto':
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    else:
-        device = config.device
-
-    # create a transformer
-    transformer = Transformer(
-        encoder,
-        decoder,
-        src_embed,
-        target_embed,
-        src_pe,
-        target_pe,
-        last_linear,
-        config.src_pad_token_id,
-        config.target_pad_token_id,
-        device,
-    )
-
-    print(f'Model has {fun.count_parameters(transformer)} learnable parameters')
-
-    # initialize the parameters with Xavier/Glorot
-    for param in transformer.parameters():
-        if param.dim() > 1:
-            nn.init.xavier_uniform_(param)
-
-    return transformer

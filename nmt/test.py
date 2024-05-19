@@ -5,14 +5,14 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from datasets import load_from_disk, DatasetDict
+from datasets import DatasetDict, load_from_disk
 
 from nmt.constants import SpecialToken
 from nmt.utils import (
-    model as model_util,
-    config as config_util,
     bleu as bleu_util,
+    config as config_util,
     dataset as dataset_util,
+    model as model_util,
 )
 from nmt.utils.logging import init_logger, logger
 from nmt.utils.misc import set_seed

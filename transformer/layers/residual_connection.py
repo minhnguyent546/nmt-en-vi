@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from transformer.layers.layer_norm import LayerNormalization
 
+
 class ResidualConnection(nn.Module):
     def __init__(self, features: int, dropout: float = 0.1):
         """

@@ -4,6 +4,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
+
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, max_seq_length: int, dropout: float = 0.1):
         """

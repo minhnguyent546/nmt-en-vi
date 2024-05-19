@@ -2,6 +2,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 
+
 class LayerNormalization(nn.Module):
     def __init__(self, features, eps: float = 1e-7):
         super().__init__()
