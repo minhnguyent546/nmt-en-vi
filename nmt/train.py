@@ -53,23 +53,54 @@ def train_model(config: dict):
         config=config
     )
 
-    transformer_config = TransformerConfig(
-        src_vocab_size=src_tokenizer.get_vocab_size(),
-        target_vocab_size=target_tokenizer.get_vocab_size(),
-        src_seq_length=config['src_seq_length'],
-        target_seq_length=config['target_seq_length'],
-        src_pad_token_id=src_tokenizer.token_to_id(SpecialToken.PAD),
-        target_pad_token_id=target_tokenizer.token_to_id(SpecialToken.PAD),
-        device=device,
-        d_model=config['d_model'],
-        num_heads=config['num_heads'],
-        num_layers=config['num_layers'],
-        d_ffn=config['d_ffn'],
-        dropout=config['dropout'],
-        attention_dropout=config['attention_dropout'],
-    )
-    model = build_transformer(transformer_config)
-    model.to(device)
+    initial_global_step = 0
+    initial_train_stats = None
+    scaler_state_dict = None
+    from_checkpoint = config['from_checkpoint']
+    checkpoint_states = None
+    if from_checkpoint is None:
+        logger.info('Starting training from scratch')
+
+        transformer_config = TransformerConfig(
+            src_vocab_size=src_tokenizer.get_vocab_size(),
+            target_vocab_size=target_tokenizer.get_vocab_size(),
+            src_seq_length=config['src_seq_length'],
+            target_seq_length=config['target_seq_length'],
+            src_pad_token_id=src_tokenizer.token_to_id(SpecialToken.PAD),
+            target_pad_token_id=target_tokenizer.token_to_id(SpecialToken.PAD),
+            device=device,
+            d_model=config['d_model'],
+            num_heads=config['num_heads'],
+            num_layers=config['num_layers'],
+            d_ffn=config['d_ffn'],
+            dropout=config['dropout'],
+            attention_dropout=config['attention_dropout'],
+        )
+        model = build_transformer(transformer_config)
+        model.to(device)
+    else:
+        logger.info('Loading states from checkpoint: %s', from_checkpoint)
+
+        checkpoint_states = torch.load(from_checkpoint, map_location=device)
+        required_keys = [
+            'model_state_dict',
+            'optimizer_state_dict',
+            'config',
+        ]
+        if config['enable_lr_scheduler']:
+            required_keys.append('lr_scheduler_state_dict')
+        for key in required_keys:
+            if key not in checkpoint_states:
+                raise ValueError(f'Missing key "{key}" in checkpoint')
+
+        transformer_config = checkpoint_states['config']
+        model = build_transformer(transformer_config).to(device)
+        model.load_state_dict(checkpoint_states['model_state_dict'])
+
+        if 'global_step' in checkpoint_states:
+            initial_global_step = checkpoint_states['global_step']
+        if 'train_stats' in checkpoint_states:
+            initial_train_stats = checkpoint_states['train_stats']
 
     # optimizer and lr scheduler
     learning_rate = config['learning_rate']
@@ -81,39 +112,16 @@ def train_model(config: dict):
             lr_lambda=lambda step_num: learning_rate * model_util.noam_decay(
                 step_num,
                 d_model=config['d_model'],
-                warmup_steps=config['warmup_steps'])
+                warmup_steps=config['warmup_steps'],
+            )
         )
 
-    initial_global_step = 0
-    initial_train_stats = None
-    from_checkpoint = config['from_checkpoint']
-    scaler_state_dict = None
-    if from_checkpoint is not None:
-        logger.info('Loading states from checkpoint: %s', from_checkpoint)
-        checkpoint_states = torch.load(from_checkpoint, map_location=device)
-        required_keys = [
-            'model_state_dict',
-            'optimizer_state_dict',
-            'config',
-        ]
-        if lr_scheduler is not None:
-            required_keys.append('lr_scheduler_state_dict')
-        for key in required_keys:
-            if key not in checkpoint_states:
-                raise ValueError(f'Missing key "{key}" in checkpoint')
-
+    if checkpoint_states is not None:
         optimizer.load_state_dict(checkpoint_states['optimizer_state_dict'])
-        transformer_config = checkpoint_states['config']
-        model = build_transformer(transformer_config).to(device)
-        model.load_state_dict(checkpoint_states['model_state_dict'])
-        if 'scaler_state_dict' in checkpoint_states:
-            scaler_state_dict = checkpoint_states['scaler_state_dict']
-
         if lr_scheduler is not None:
             lr_scheduler.load_state_dict(checkpoint_states['lr_scheduler_state_dict'])
-
-        initial_global_step = checkpoint_states.get('global_step', initial_global_step)
-        initial_train_stats = checkpoint_states.get('train_stats', initial_train_stats)
+        if 'scaler_state_dict' in checkpoint_states:
+            scaler_state_dict = checkpoint_states['scaler_state_dict']
 
     criterion = nn.CrossEntropyLoss(ignore_index=src_tokenizer.token_to_id(SpecialToken.PAD),
                                     label_smoothing=config['label_smoothing'])
