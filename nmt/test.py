@@ -66,7 +66,7 @@ def test_model(config: dict):
 
     metric_scores = test_stats.compute()
 
-    logger.info('\n%s', pd.DataFrame({
+    print(pd.DataFrame({
         'test_loss': [metric_scores['loss']],
         'test_accuracy': [metric_scores['acc']],
         'test_precision': [metric_scores['precision']],
