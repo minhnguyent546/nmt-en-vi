@@ -137,7 +137,6 @@ def compute_dataset_bleu(
     )
 
     # set model back to training mode
-    if is_training:
-        model.train()
+    model.train(is_training)
 
     return dataset_blue_score['score']

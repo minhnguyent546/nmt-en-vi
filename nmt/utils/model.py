@@ -2,7 +2,6 @@ from pathlib import Path
 from tqdm.autonotebook import tqdm
 
 import torch
-from torch import optim
 from torch import Tensor
 import torch.nn.functional as Fun
 from torch.utils.data import DataLoader
@@ -16,26 +15,36 @@ from transformer import Transformer
 import transformer.utils.functional as fun
 
 
-def make_optimizer(model: Transformer, config: dict) -> optim.Optimizer:
-    optim_type = config['optim']
-    if optim_type == 'adam':
-        optimizer = optim.Adam(
-            model.parameters(),
+def make_optimizer(model: Transformer, config: dict) -> torch.optim.Optimizer:
+    optim = config['optim']
+    param_list = [param for param in model.parameters() if param.requires_grad]
+    decay_params = [param for param in param_list if param.dim() > 1]
+    no_decay_params = [param for param in param_list if param.dim() <= 1]
+    param_groups = [
+        {'params': decay_params, 'weight_decay': config['weight_decay']},
+        {'params': no_decay_params, 'weight_decay': 0.0},
+    ]
+    if optim == 'adam':
+        optimizer = torch.optim.Adam(
+            param_groups,
             lr=config['learning_rate'],
             betas=config['betas'],
             eps=config['eps'],
             weight_decay=config['weight_decay']
         )
-    elif optim_type == 'adamw':
-        optimizer = optim.AdamW(
-            model.parameters(),
+    elif optim == 'adamw':
+        optimizer = torch.optim.AdamW(
+            param_groups,
             lr=config['learning_rate'],
             betas=config['betas'],
             eps=config['eps'],
             weight_decay=config['weight_decay']
         )
     else:
-        raise ValueError('Invalid optimizer option: ' + optim_type)
+        raise ValueError(
+            f'Unsupported optimizer type: {optim}. '
+            'Possible values are "adam", "adamw".',
+        )
 
     return optimizer
 
@@ -298,7 +307,6 @@ def evaluate(
         batch_iterator.set_postfix({'loss': f'{loss.item():0.3f}'})
 
     # set model back to training mode
-    if is_training:
-        model.train()
+    model.train(is_training)
 
     return eval_stats
