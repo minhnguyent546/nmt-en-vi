@@ -116,7 +116,7 @@ def decode_with_teacher_forcing(
         decoder_input.unsqueeze_(0)
 
     decoder_output = model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
-    logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+    logits = model.linear_transform(decoder_output)  # (batch_size, seq_length, target_vocab_size)
 
     pred_token_ids = logits.argmax(dim=-1)  # (batch_size, seq_length)
 
@@ -159,7 +159,7 @@ def greedy_search_decode(
                                       src_mask=encoder_mask, target_mask=decoder_mask)
 
         # get token with highest probability
-        logits = model.linear(decoder_output[:, -1, :])  # (1, target_vocab_size)
+        logits = model.linear_transform(decoder_output[:, -1, :])  # (1, target_vocab_size)
         next_token = logits.argmax(dim=-1)
 
         # concatenate the next token to the decoder input for the next prediction
@@ -235,7 +235,7 @@ def beam_search_decode(
             # logits: shape ``(1, target_vocab_size)``
             # topk_prob       : shape ``(1, beam_size)``
             # topk_token      : shape ``(1, beam_size)``
-            logits = model.linear(decoder_output[:, -1, :])
+            logits = model.linear_transform(decoder_output[:, -1, :])
 
             output = Fun.log_softmax(logits, dim=-1) / length_penalty(cand.size(1) + 1)
             # get the top k largest tokens
@@ -294,7 +294,7 @@ def evaluate(
         labels = batch['labels'].to(device)  # (batch_size, seq_length)
 
         decoder_output = model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
-        logits = model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+        logits = model.linear_transform(decoder_output)  # (batch_size, seq_length, target_vocab_size)
         pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
 
         # calculating the loss

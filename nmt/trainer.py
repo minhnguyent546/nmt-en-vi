@@ -100,7 +100,7 @@ class Trainer:
 
                 with self.autocast_ctx:
                     decoder_output = self.model(encoder_input, decoder_input)  # (batch_size, seq_length, d_model)
-                    logits = self.model.linear(decoder_output)  # (batch_size, seq_length, target_vocab_size)
+                    logits = self.model.linear_transform(decoder_output)  # (batch_size, seq_length, target_vocab_size)
                     pred = logits.argmax(dim=-1)  # (batch_size, seq_length)
                     labels = batch['labels'].to(self.device)  # (batch_size, seq_length)
 

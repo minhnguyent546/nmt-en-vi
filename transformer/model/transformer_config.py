@@ -13,6 +13,7 @@ class TransformerConfig:
     src_pad_token_id: int
     target_pad_token_id: int
     device: torch.device | Literal['auto'] = 'auto'
+    shared_vocab: bool = True
     d_model: int = 512
     num_heads: int = 8
     num_layers: int = 6

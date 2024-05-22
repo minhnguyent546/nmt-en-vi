@@ -17,6 +17,7 @@ from nmt.utils import (
 from nmt.utils.logging import init_logger, logger
 from nmt.utils.misc import set_seed
 from transformer import TransformerConfig, build_transformer
+import transformer.utils.functional as fun
 
 
 def train_model(config: dict):
@@ -69,6 +70,7 @@ def train_model(config: dict):
             src_pad_token_id=src_tokenizer.token_to_id(SpecialToken.PAD),
             target_pad_token_id=target_tokenizer.token_to_id(SpecialToken.PAD),
             device=device,
+            shared_vocab=config['share_vocab'],
             d_model=config['d_model'],
             num_heads=config['num_heads'],
             num_layers=config['num_layers'],
@@ -101,6 +103,8 @@ def train_model(config: dict):
             initial_global_step = checkpoint_states['global_step']
         if 'train_stats' in checkpoint_states:
             initial_train_stats = checkpoint_states['train_stats']
+
+    print(f'Model has {fun.count_parameters(model)} learnable parameters')
 
     # optimizer and lr scheduler
     learning_rate = config['learning_rate']
@@ -160,7 +164,7 @@ def train_model(config: dict):
     trainer.train(train_data_loader, validation_data_loader)
 
 def main():
-    parser = argparse.ArgumentParser(description='Train the model')
+    parser = argparse.ArgumentParser(description='Training the model')
     parser.add_argument('--config',
                         help='Path to the config file (default: ./config/config.yaml)',
                         dest='config_file',
