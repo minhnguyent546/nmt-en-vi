@@ -12,11 +12,11 @@ from transformer.utils import functional as fun
 
 
 def build_transformer(config: TransformerConfig) -> Transformer:
-    src_embeddings = Embeddings(config.src_vocab_size, config.d_model)
+    src_embed = Embeddings(config.src_vocab_size, config.d_model)
     if config.shared_vocab:
-        target_embeddings = src_embeddings  # using tied weights
+        target_embed = src_embed  # using tied weights
     else:
-        target_embeddings = Embeddings(config.target_vocab_size, config.d_model)
+        target_embed = Embeddings(config.target_vocab_size, config.d_model)
 
     src_pe = PositionalEncoding(config.d_model, config.src_seq_length, dropout=config.dropout)
     target_pe = PositionalEncoding(config.d_model, config.target_seq_length, dropout=config.dropout)
@@ -33,8 +33,8 @@ def build_transformer(config: TransformerConfig) -> Transformer:
     transformer = Transformer(
         encoder,
         decoder,
-        src_embeddings,
-        target_embeddings,
+        src_embed,
+        target_embed,
         src_pe,
         target_pe,
         last_linear,
@@ -49,8 +49,8 @@ class Transformer(nn.Module):
         self,
         encoder: Encoder,
         decoder: Decoder,
-        src_embeddings: Embeddings,
-        target_embeddings: Embeddings,
+        src_embed: Embeddings,
+        target_embed: Embeddings,
         src_pe: PositionalEncoding,
         target_pe: PositionalEncoding,
         last_linear: nn.Linear,
@@ -62,8 +62,8 @@ class Transformer(nn.Module):
         Args:
             encoder (Encoder): encoder model
             decoder (Decoder): decoder model
-            src_embeddings (Embeddings): source embedding
-            target_embeddings (Embeddings): target embedding
+            src_embed (Embeddings): source embedding
+            target_embed (Embeddings): target embedding
             src_pe (PositionalEncoding): source positional encoding
             target_pe (PositionalEncoding): target positional encoding
             last_linear (nn.Linear): the last linear transformation layer
@@ -75,8 +75,8 @@ class Transformer(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
-        self.src_embeddings = src_embeddings
-        self.target_embeddings = target_embeddings
+        self.src_embed = src_embed
+        self.target_embed = target_embed
         self.src_pe = src_pe
         self.target_pe = target_pe
         self.last_linear = last_linear
@@ -98,7 +98,7 @@ class Transformer(nn.Module):
 
         if src_mask is None:
             src_mask = fun.create_encoder_mask(src, self.src_pad_token_id, has_batch_dim=True)
-        src = self.src_embeddings(src)
+        src = self.src_embed(src)
         src = self.src_pe(src)
         src = self.encoder(src, src_mask=src_mask)
         return src
@@ -123,7 +123,7 @@ class Transformer(nn.Module):
 
         if target_mask is None:
             target_mask = fun.create_decoder_mask(target, self.target_pad_token_id, has_batch_dim=True)
-        target = self.target_embeddings(target)
+        target = self.target_embed(target)
         target = self.target_pe(target)
 
         assert src.dim() == 3
@@ -161,9 +161,9 @@ class Transformer(nn.Module):
 
     def post_init(self) -> None:
         self._init_params()
-        if self.src_embeddings is self.target_embeddings:
+        if self.src_embed is self.target_embed:
             # if we are using tied weights
-            self._set_linear_transform_weights(self.src_embeddings)
+            self._set_linear_transform_weights(self.src_embed)
 
     def _init_params(self) -> None:
         # initialize the parameters with Xavier/Glorot

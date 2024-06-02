@@ -2,12 +2,12 @@ import contractions
 import html
 import re
 
-import torch
 from torch import Tensor
+import torch
 
 from tokenizers import Tokenizer
 
-from nmt.constants import Config, SpecialToken
+from nmt.constants import Config, LOWER_ONE_EIGHTH_BLOCK, SpecialToken
 from nmt.utils import misc as misc_util, model as model_util
 from nmt.utils.tokenizer import MosesDetokenizer, MosesTokenizer
 from transformer import Transformer
@@ -57,22 +57,18 @@ class Translator:
                 cand_list = model_util.beam_search_decode(self.model, self.model.device, beam_size,
                                                           encoder_input, self.target_tokenizer,
                                                           max_seq_length, return_topk=beam_return_topk)
-                pred_token_ids = cand_list[0]
-            else:
-                pred_token_ids = model_util.greedy_search_decode(self.model, self.model.device, encoder_input,
-                                                                 self.target_tokenizer, max_seq_length)
-
-            pred_text = self.target_tokenizer.decode(pred_token_ids.detach().cpu().numpy(), skip_special_tokens=False)
-            if cand_list is not None:
+                cand_list = [cand.detach().cpu().numpy() for cand in cand_list]
                 cand_text_list = [
-                    self.target_tokenizer.decode(cand.detach().cpu().numpy(), skip_special_tokens=False)
+                    self.target_tokenizer.decode(cand, skip_special_tokens=False)
                     for cand in cand_list
                 ]
-
-            if cand_text_list is not None:
                 cand_text_list = [self._postprocess_sentence(cand) for cand in cand_text_list]
                 return cand_text_list
             else:
+                pred_token_ids = model_util.greedy_search_decode(self.model, self.model.device, encoder_input,
+                                                                 self.target_tokenizer, max_seq_length)
+                pred_token_ids = pred_token_ids.detach().cpu().numpy()
+                pred_text = self.target_tokenizer.decode(pred_token_ids, skip_special_tokens=False)
                 return self._postprocess_sentence(pred_text)
 
     def _make_encoder_input(self, src_text: str) -> Tensor:

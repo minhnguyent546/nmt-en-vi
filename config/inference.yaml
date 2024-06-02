@@ -1,11 +1,6 @@
-model_path: ./_test_translate/transformer-nmt-base/transformer_nmt_base_09.pt
-src_tokenizer: ./_test_translate/transformer-nmt-base/tokenizer_source.json
-target_tokenizer: ./_test_translate/transformer-nmt-base/tokenizer_target.json
-
-d_model: 512
-num_layers: 6
-num_heads: 8
-d_ffn: 2048
+checkpoint: /path/to/checkpoint.pt
+src_tokenizer: /path/to/source_tokenizer.json
+target_tokenizer: /path/to/target_tokenizer.json
 
 seq_length: 120
 beam_size: 4

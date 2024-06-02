@@ -96,6 +96,7 @@ def train_model(config: dict):
                 raise ValueError(f'Missing key "{key}" in checkpoint')
 
         transformer_config = checkpoint_states['config']
+        transformer_config.device = device
         model = build_transformer(transformer_config).to(device)
         model.load_state_dict(checkpoint_states['model_state_dict'])
 
