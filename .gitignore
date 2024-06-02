@@ -1,9 +1,11 @@
+# python stuff
 __pycache__
-/checkpoints
-/runs
-/draft.*
 /.ipynb_checkpoints
+
+# local stuff
+/draft.*
 /figures/**/*.csv
 /figures/**/*.py
 /config/config-local.yaml
-/datasets
+/config/inference-local.yaml
+/_*
