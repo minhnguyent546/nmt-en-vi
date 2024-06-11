@@ -17,7 +17,7 @@ class MultiHeadAttention(nn.Module):
         self.d_model = d_model
         self.num_heads = num_heads
         assert d_model % num_heads == 0, 'd_model should be divisible by num_heads'
-        self.d_k = d_model // num_heads
+        self.head_dim = d_model // num_heads
 
         self.w_q = nn.Linear(d_model, d_model)
         self.w_k = nn.Linear(d_model, d_model)
@@ -50,15 +50,15 @@ class MultiHeadAttention(nn.Module):
         v = self.w_v(value)
 
         # split q, k, v into multiple heads
-        # q: (batch_size, num_heads, q_length, d_k)
-        # k: (batch_size, num_heads, k_length, d_k)
-        # v: (batch_size, num_heads, v_length, d_v)
-        q = q.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-        k = k.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
-        v = v.view(batch_size, -1, self.num_heads, self.d_k).transpose(1, 2)
+        # q: (batch_size, num_heads, q_length, head_dim)
+        # k: (batch_size, num_heads, kv_length, head_dim)
+        # v: (batch_size, num_heads, kv_length, head_dim)
+        q = q.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
 
-        # x: (batch_size, num_heads, q_length, d_v)
-        # attention_probs: (batch_size, num_heads, q_length, k_length)
+        # x: (batch_size, num_heads, q_length, head_dim)
+        # attention_probs: (batch_size, num_heads, q_length, kv_length)
         x, attention_probs = scaled_dot_product(q, k, v, mask=mask, dropout=self.dropout)
         self.attention_probs = attention_probs
 
@@ -68,27 +68,27 @@ class MultiHeadAttention(nn.Module):
         return x
 
 def scaled_dot_product(
-    q: Tensor,
-    k: Tensor,
-    v: Tensor,
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
     mask: Tensor | None = None,
     dropout: nn.Dropout | float | None = None,
 ) -> tuple[Tensor, Tensor]:
     """
     Args:
-        query (Tensor): query tensor, shape ``(batch_size, num_heads, q_length, d_k)``
-        key (Tensor): key tensor, shape ``(batch_size, num_heads, k_length, d_k)``
-        value (Tensor): value tensor, shape ``(batch_size, num_heads, v_length, d_v)``
-        mask (Tensor): mask tensor, shape ``(batch_size, 1, 1, k_length)`` (default: None)
+        query (Tensor): query tensor, shape ``(batch_size, num_heads, q_length, head_dim)``
+        key (Tensor): key tensor, shape ``(batch_size, num_heads, kv_length, head_dim)``
+        value (Tensor): value tensor, shape ``(batch_size, num_heads, kv_length, head_dim)``
+        mask (Tensor): mask tensor, shape ``(batch_size, 1, 1, kv_length)`` (default: None)
         dropout (nn.Dropout): dropout layer (default: None)
     Returns:
-        values (Tensor): attention tensor, shape ``(batch_size, num_heads, q_length, d_v)``
-        attention_probs (Tensor): softmax score, shape ``(batch_size, num_heads, q_length, k_length)``
+        values (Tensor): attention tensor, shape ``(batch_size, num_heads, q_length, head_dim)``
+        attention_probs (Tensor): softmax score, shape ``(batch_size, num_heads, q_length, kv_length)``
     """
 
-    d_k = q.size(-1)
-    # attention_probs: (batch_size, num_heads, q_length, k_length)
-    attention_probs = (q @ k.transpose(-2, -1)) / math.sqrt(d_k)
+    head_dim = query.size(-1)
+    # attention_probs: (batch_size, num_heads, q_length, kv_length)
+    attention_probs = (query @ key.transpose(-2, -1)) / math.sqrt(head_dim)
     if mask is not None:
         attention_probs.masked_fill_(mask == False, float('-inf'))
 
@@ -98,5 +98,5 @@ def scaled_dot_product(
             dropout = nn.Dropout(dropout)
         attention_probs = dropout(attention_probs)
 
-    values = attention_probs @ v
+    values = attention_probs @ value
     return values, attention_probs
